@@ -1,0 +1,145 @@
+// Runs after `vite build`. For every important route it writes a real HTML file containing the page's
+// title, meta tags, canonical URL, JSON-LD (schema.org) and readable text — so Google, Bing and AI crawlers
+// (ChatGPT, Claude, Perplexity, Gemini) that do not run JavaScript still see complete, accurate content.
+// It also generates sitemap.xml, robots.txt and llms.txt. The React app takes over in the browser as usual.
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { PAGES, POLICY_SLUGS } from '../src/content/legal.js'
+import { LISTING, gameContent, categoryContent } from '../src/content/seo.js'
+import { SITE, NAV, LEGAL_LINKS } from '../src/content/site.js'
+
+const env = { ...process.env }
+if (existsSync('.env')) for (const l of readFileSync('.env', 'utf8').split('\n')) { const m = l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/); if (m && !(m[1] in env)) env[m[1]] = m[2].replace(/^["']|["']$/g, '') }
+let SITE_URL = (env.SITE_URL || env.VITE_SITE_URL || '').replace(/\/$/, '')
+if (!SITE_URL || SITE_URL.includes('yourdomain')) { console.warn('⚠ SITE_URL is not set — using https://yourdomain.com. Set SITE_URL in your hosting environment for correct canonical URLs and sitemap.'); SITE_URL = 'https://yourdomain.com' }
+const SB = (env.VITE_SUPABASE_URL || '').replace(/\/$/, ''), KEY = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || ''
+const live = SB && KEY && !SB.includes('YOUR_PROJECT_ID')
+const DIST = 'dist'
+const template = readFileSync(join(DIST, 'index.html'), 'utf8')
+
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+const slugify = v => String(v || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+const plain = s => String(s ?? '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+const inline = s => esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => `<a href="${u.startsWith('/') ? SITE_URL + u : u}">${t}</a>`)
+const clip = (s, n) => { s = String(s ?? '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s }
+
+async function rest(table, select = '*', filter = '') {
+  const r = await fetch(`${SB}/rest/v1/${table}?select=${select}${filter}`, { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` } })
+  if (!r.ok) throw new Error(`${table} ${r.status}`)
+  return r.json()
+}
+let mods = [], posts = [], cpages = [], settings = {}
+if (live) {
+  try { mods = await rest('mods', '*', '&status=eq.published&order=published_at.desc') } catch (e) { console.warn('mods:', e.message) }
+  try { posts = await rest('posts', '*', '&status=eq.published&order=published_at.desc') } catch (e) { console.warn('posts:', e.message) }
+  try { cpages = await rest('pages', '*', '&status=eq.published') } catch (e) { console.warn('pages:', e.message) }
+  try { settings = (await rest('site_settings', '*', '&id=eq.1'))[0] || {} } catch {}
+} else console.log('Supabase not configured: prerendering static pages only.')
+
+// ---------- html building blocks ----------
+const sectionsHtml = (sections = []) => sections.map(s => `<section id="${esc(s.id)}"><h2>${esc(s.h)}</h2>${(s.p || []).map(t => `<p>${inline(t)}</p>`).join('')}${s.ul ? `<ul>${s.ul.map(t => `<li>${inline(t)}</li>`).join('')}</ul>` : ''}${s.ol ? `<ol>${s.ol.map(t => `<li>${inline(t)}</li>`).join('')}</ol>` : ''}${s.table ? `<table><thead><tr>${s.table.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${s.table.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : ''}${s.note ? `<p>${inline(s.note)}</p>` : ''}</section>`).join('')
+const faqHtml = (faqs = []) => faqs.length ? `<section id="faq"><h2>Frequently asked questions</h2>${faqs.map(f => `<h3>${esc(f.q)}</h3><p>${inline(f.a)}</p>`).join('')}</section>` : ''
+const answerHtml = a => a ? `<aside><strong>${esc(a.q)}</strong><p>${inline(a.a)}</p></aside>` : ''
+const navHtml = () => `<nav aria-label="Main">${[{ to: '/', label: 'Home' }, ...NAV].map(n => `<a href="${SITE_URL}${n.to}">${esc(n.label)}</a>`).join(' · ')}</nav>`
+const footHtml = () => `<footer><nav aria-label="Legal">${LEGAL_LINKS.map(n => `<a href="${SITE_URL}${n.to}">${esc(n.label)}</a>`).join(' · ')}</nav><p>© ${new Date().getFullYear()} Modexa. Independent; not affiliated with game publishers.</p></footer>`
+const crumbsLd = (url, items) => ({ '@type': 'BreadcrumbList', itemListElement: items.map((b, i) => ({ '@type': 'ListItem', position: i + 1, name: b.label, item: SITE_URL + (b.to || url) })) })
+const faqLd = faqs => ({ '@type': 'FAQPage', mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: plain(f.a) } })) })
+const pageLd = (path, title, desc, type = 'WebPage', extra = {}) => ({ '@type': type, '@id': SITE_URL + path + '#webpage', url: SITE_URL + path, name: title, description: desc, inLanguage: 'en', isPartOf: { '@id': SITE_URL + '/#website' }, ...extra })
+function md(src = '') {
+  const lines = String(src).replace(/\r\n?/g, '\n').split('\n'); let out = '', list = null, para = []
+  const fp = () => { if (para.length) { out += `<p>${inline(para.join(' '))}</p>`; para = [] } }, fl = () => { if (list) { out += `</${list}>`; list = null } }
+  for (const raw of lines) { const l = raw.trim(); let m
+    if (!l) { fp(); fl(); continue }
+    if ((m = l.match(/^###\s+(.*)$/))) { fp(); fl(); out += `<h3>${inline(m[1])}</h3>` }
+    else if ((m = l.match(/^##\s+(.*)$/))) { fp(); fl(); out += `<h2>${inline(m[1])}</h2>` }
+    else if ((m = l.match(/^[-*•]\s+(.*)$/))) { fp(); if (list !== 'ul') { fl(); out += '<ul>'; list = 'ul' } out += `<li>${inline(m[1])}</li>` }
+    else if ((m = l.match(/^\d+[.)]\s+(.*)$/))) { fp(); if (list !== 'ol') { fl(); out += '<ol>'; list = 'ol' } out += `<li>${inline(m[1])}</li>` }
+    else { fl(); para.push(l) } }
+  fp(); fl(); return out
+}
+
+// ---------- route table ----------
+const routes = []
+const add = r => routes.push({ type: 'website', image: '', noindex: false, ld: [], ...r })
+const homeL = LISTING.home
+add({ path: '/', title: homeL.seoTitle, description: homeL.description, h1: homeL.h1,
+  body: `<p>${esc(SITE.description)}</p>${answerHtml(homeL.answer)}<section><h2>How Modexa works</h2><ol>${homeL.steps.map(s => `<li><strong>${esc(s.t)}.</strong> ${esc(s.d)}</li>`).join('')}</ol></section><section><h2>Why Modexa</h2><ul>${homeL.values.map(v => `<li><strong>${esc(v.t)}.</strong> ${esc(v.d)}</li>`).join('')}</ul></section>${sectionsHtml(homeL.sections)}${faqHtml(homeL.faqs)}`,
+  ld: [pageLd('/', homeL.seoTitle, homeL.description), faqLd(homeL.faqs)] })
+for (const k of ['mods', 'trending', 'latest', 'games', 'categories', 'blog', 'submit']) {
+  const L = LISTING[k]
+  add({ path: L.path, title: L.seoTitle, description: L.description, h1: L.h1, body: `${answerHtml(L.answer)}${sectionsHtml(L.sections)}${faqHtml(L.faqs)}`,
+    ld: [pageLd(L.path, L.seoTitle, L.description, k === 'submit' ? 'WebPage' : 'CollectionPage'), crumbsLd(L.path, [{ label: 'Home', to: '/' }, { label: L.h1, to: L.path }]), ...(L.faqs.length ? [faqLd(L.faqs)] : [])] })
+}
+for (const slug of POLICY_SLUGS) {
+  const P = PAGES[slug], path = '/' + slug
+  add({ path, title: P.seoTitle, description: P.description, h1: P.h1, body: `<p>Last updated ${esc(SITE.updatedLabel)}.</p>${answerHtml(P.answer)}${sectionsHtml(P.sections)}${faqHtml(P.faqs)}`,
+    ld: [pageLd(path, P.seoTitle, P.description, P.type, { dateModified: P.updated }), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: P.title, to: path }]), ...(P.faqs?.length ? [faqLd(P.faqs)] : [])] })
+}
+// dynamic content (only when Supabase is connected)
+for (const m of mods) {
+  const path = '/mods/' + m.slug, title = m.seo_title ? `${m.seo_title} | Modexa` : `${m.title} — ${m.game} Mod (${m.platform}) | Modexa`
+  const desc = clip(m.seo_description || `${m.excerpt || m.description || m.title} Check features, requirements, version ${m.version || ''} and install notes, then download from the creator’s original page.`, 158)
+  const list = (a, t) => Array.isArray(a) && a.length ? `<h2>${t}</h2><ul>${a.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''
+  add({ path, title, description: desc, h1: m.title, image: m.cover_image, type: 'article', noindex: !!m.noindex, canonical: m.canonical_url || '',
+    body: `<p>${esc(m.excerpt || '')}</p><ul><li>Game: ${esc(m.game)}</li><li>Category: ${esc(m.category)}</li><li>Platform: ${esc(m.platform)}</li><li>Version: ${esc(m.version)}</li><li>Creator: ${esc(m.creator)}</li></ul><p>${esc(m.description || m.content || '')}</p>${list(m.features, 'Features')}${list(m.requirements, 'Requirements')}${Array.isArray(m.install) && m.install.length ? `<h2>Installation</h2><ol>${m.install.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}${m.download_url ? `<p><a href="${esc(m.download_url)}" rel="nofollow noopener">Creator’s original page</a></p>` : ''}`,
+    lastmod: (m.updated_at || '').slice(0, 10),
+    ld: [pageLd(path, title, desc, 'ItemPage', { dateModified: m.updated_at || undefined }), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: 'Mods', to: '/mods' }, { label: m.title, to: path }]),
+      { '@type': 'SoftwareApplication', name: m.title, applicationCategory: 'GameApplication', operatingSystem: m.platform, description: m.excerpt || m.description, image: m.cover_image || undefined, softwareVersion: m.version || undefined, author: { '@type': 'Person', name: m.creator || 'Community creator' } },
+      ...(Array.isArray(m.install) && m.install.length ? [{ '@type': 'HowTo', name: `How to install ${m.title}`, step: m.install.map((t, i) => ({ '@type': 'HowToStep', position: i + 1, text: String(t) })) }] : [])] })
+}
+const games = new Map(), cats = new Map()
+for (const m of mods) { if (m.game) games.set(slugify(m.game), m.game); if (m.category) cats.set(m.category.toLowerCase().replaceAll(' & ', '-').replaceAll(' ', '-'), m.category) }
+for (const [s, name] of games) { const c = gameContent(name, mods.filter(m => m.game === name).length), path = '/games/' + s, t = `${name} Mods — Browse Community Mods | Modexa`, d = `Browse ${name} mods on Modexa: compare versions, platforms and requirements, then download from the creator’s original page.`
+  add({ path, title: t, description: d, h1: `${name} mods`, body: `${answerHtml(c.answer)}<ul>${mods.filter(m => m.game === name).map(m => `<li><a href="${SITE_URL}/mods/${m.slug}">${esc(m.title)}</a> — ${esc(m.excerpt || '')}</li>`).join('')}</ul>${sectionsHtml(c.sections)}${faqHtml(c.faqs)}`, ld: [pageLd(path, t, d, 'CollectionPage'), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: 'Games', to: '/games' }, { label: name, to: path }]), faqLd(c.faqs)] }) }
+for (const [s, name] of cats) { const c = categoryContent(name, mods.filter(m => m.category === name).length), path = '/categories/' + s, t = `${name} Mods — Browse by Category | Modexa`, d = `Browse ${name} mods on Modexa: compare games, versions and platforms, then download from the creator’s original page.`
+  add({ path, title: t, description: d, h1: `${name} mods`, body: `${answerHtml(c.answer)}<ul>${mods.filter(m => m.category === name).map(m => `<li><a href="${SITE_URL}/mods/${m.slug}">${esc(m.title)}</a> — ${esc(m.excerpt || '')}</li>`).join('')}</ul>${sectionsHtml(c.sections)}${faqHtml(c.faqs)}`, ld: [pageLd(path, t, d, 'CollectionPage'), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: 'Categories', to: '/categories' }, { label: name, to: path }]), faqLd(c.faqs)] }) }
+for (const p of posts) {
+  const path = '/blog/' + p.slug, title = p.seo_title ? `${p.seo_title} | Modexa` : `${p.title} | Modexa`, desc = clip(p.seo_description || p.excerpt || p.title, 158)
+  add({ path, title, description: desc, h1: p.title, image: p.cover_image, type: 'article', noindex: !!p.noindex, canonical: p.canonical_url || '', lastmod: (p.updated_at || '').slice(0, 10),
+    body: `<p>${esc(p.excerpt || '')}</p>${md(p.content)}`,
+    ld: [pageLd(path, title, desc, 'WebPage', { dateModified: p.updated_at || undefined }), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: 'Guides & blog', to: '/blog' }, { label: p.title, to: path }]),
+      { '@type': 'Article', headline: p.title, description: desc, image: p.cover_image || undefined, datePublished: p.published_at || undefined, dateModified: p.updated_at || p.published_at || undefined, author: { '@type': 'Organization', name: 'Modexa' }, publisher: { '@id': SITE_URL + '/#organization' }, mainEntityOfPage: SITE_URL + path }] })
+}
+for (const p of cpages) { if (POLICY_SLUGS.includes(p.slug)) continue
+  const path = '/page/' + p.slug, title = p.seo_title ? `${p.seo_title} | Modexa` : `${p.title} | Modexa`, desc = clip(p.seo_description || p.excerpt || p.title, 158)
+  add({ path, title, description: desc, h1: p.title, noindex: !!p.noindex, lastmod: (p.updated_at || '').slice(0, 10), body: `<p>${esc(p.excerpt || '')}</p>${md(p.content)}`, ld: [pageLd(path, title, desc), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: p.title, to: path }])] }) }
+
+// ---------- write html ----------
+const DEFAULT_IMG = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=85'
+const setMeta = (html, attr, key, val) => { const re = new RegExp(`<meta ${attr}="${key}"[^>]*>`); const tag = `<meta ${attr}="${key}" content="${esc(val)}"/>`; return re.test(html) ? html.replace(re, tag) : html.replace('</head>', `  ${tag}\n</head>`) }
+function build(r) {
+  const url = r.canonical || SITE_URL + (r.path === '/' ? '/' : r.path)
+  let h = template
+  h = h.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(r.title)}</title>`)
+  h = setMeta(h, 'name', 'description', r.description)
+  h = setMeta(h, 'name', 'robots', r.noindex ? 'noindex,follow' : 'index,follow,max-image-preview:large,max-snippet:-1')
+  for (const [k, v] of [['og:title', r.title], ['og:description', r.description], ['og:url', url], ['og:type', r.type], ['og:image', r.image || DEFAULT_IMG], ['og:locale', 'en_US']]) h = setMeta(h, 'property', k, v)
+  for (const [k, v] of [['twitter:card', 'summary_large_image'], ['twitter:title', r.title], ['twitter:description', r.description], ['twitter:image', r.image || DEFAULT_IMG]]) h = setMeta(h, 'name', k, v)
+  h = h.replace(/<link rel="canonical"[^>]*>/, `<link rel="canonical" href="${esc(url)}"/>`)
+  const ld = `<script type="application/ld+json" data-modexa-ld="1">${JSON.stringify({ '@context': 'https://schema.org', '@graph': r.ld })}</script>`
+  h = h.replace('</head>', `  ${ld}\n</head>`)
+  const content = `<div class="prerender">${navHtml()}<main><h1>${esc(r.h1)}</h1>${r.body}</main>${footHtml()}</div>`
+  h = h.replace('<div id="root"></div>', `<div id="root">${content}</div>`)
+  return h.split('__SITE_URL__').join(SITE_URL)
+}
+const write = (path, html) => { const file = path === '/' ? join(DIST, 'index.html') : join(DIST, path.replace(/^\//, ''), 'index.html'); mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, html) }
+for (const r of routes) write(r.path, build(r))
+// 404 (noindex) for hosts that serve /404.html
+writeFileSync(join(DIST, '404.html'), build({ path: '/404', title: 'Page not found | Modexa', description: 'This page could not be found.', h1: 'Page not found', body: '<p>The page you are looking for does not exist. Try the <a href="/mods">mod library</a>.</p>', noindex: true, type: 'website', ld: [] }))
+
+// ---------- sitemap, robots, llms.txt ----------
+const today = new Date().toISOString().slice(0, 10)
+const indexable = routes.filter(r => !r.noindex && !r.canonical)
+const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${indexable.map(r => `  <url><loc>${SITE_URL}${r.path === '/' ? '/' : r.path}</loc><lastmod>${r.lastmod || (PAGES[r.path.slice(1)]?.updated) || today}</lastmod></url>`).join('\n')}\n</urlset>\n`
+writeFileSync(join(DIST, 'sitemap.xml'), sitemap)
+const bots = ['*', 'GPTBot', 'OAI-SearchBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-SearchBot', 'PerplexityBot', 'Google-Extended', 'Applebot-Extended']
+writeFileSync(join(DIST, 'robots.txt'), `# AI and search crawlers are welcome so Modexa can be cited accurately. Remove a group below to opt out.\n${bots.map(b => `User-agent: ${b}\nAllow: /\nDisallow: /admin\n`).join('\n')}\nSitemap: ${SITE_URL}/sitemap.xml\n`)
+const llm = []
+llm.push(`# Modexa\n\n> ${SITE.description}\n\nModexa lists game mods and custom content with the supported game, platform, version, requirements and installation notes. It never re-hosts files: every download button opens the creator’s original page. Listings are reviewed manually. Modexa is independent and not affiliated with game publishers.\n`)
+llm.push(`## Key pages\n${[['/', 'Home'], ['/mods', 'Explore all mods'], ['/games', 'Browse by game'], ['/categories', 'Browse by category'], ['/trending', 'Trending mods'], ['/latest', 'Latest mods'], ['/blog', 'Guides and blog'], ['/submit-mod', 'Submit a mod']].map(([p, t]) => `- [${t}](${SITE_URL}${p === '/' ? '/' : p})`).join('\n')}\n`)
+llm.push(`## Policies and help\n${LEGAL_LINKS.map(l => `- [${l.label}](${SITE_URL}${l.to})`).join('\n')}\n`)
+if (mods.length) llm.push(`## Mods\n${mods.slice(0, 200).map(m => `- [${m.title}](${SITE_URL}/mods/${m.slug}): ${clip(m.excerpt || m.description, 120)} (${m.game}, ${m.platform})`).join('\n')}\n`)
+if (posts.length) llm.push(`## Guides\n${posts.slice(0, 100).map(p => `- [${p.title}](${SITE_URL}/blog/${p.slug}): ${clip(p.excerpt, 120)}`).join('\n')}\n`)
+if (settings.contact_email) llm.push(`## Contact\n${settings.contact_email} — or use ${SITE_URL}/contact\n`)
+writeFileSync(join(DIST, 'llms.txt'), llm.join('\n'))
+console.log(`prerender: ${routes.length} pages, sitemap (${indexable.length} URLs), robots.txt, llms.txt → ${SITE_URL}`)
