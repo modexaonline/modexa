@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
+import ErrorBoundary from './components/ErrorBoundary'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
@@ -24,7 +25,7 @@ export default function App() {
   const location = useLocation()
   useEffect(() => { try { localStorage.setItem('modexa-saved', JSON.stringify(savedIds)) } catch {} }, [savedIds])
   useEffect(() => { if (!location.hash) window.scrollTo({ top: 0, behavior: 'instant' }) }, [location.pathname])
-  if (location.pathname.startsWith('/admin')) return <Suspense fallback={<div className="admin-center">Loading admin…</div>}><Admin /></Suspense>
+  if (location.pathname.startsWith('/admin')) return <ErrorBoundary fullscreen><Suspense fallback={<div className="admin-center">Loading admin…</div>}><Admin /></Suspense></ErrorBoundary>
   const onToggleSave = id => setSavedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   return <Layout savedCount={savedIds.length}>
     <Suspense fallback={<PageSkeleton/>}><Routes>

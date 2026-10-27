@@ -128,6 +128,16 @@ for (const r of routes) write(r.path, build(r))
 // 404 (noindex) for hosts that serve /404.html
 writeFileSync(join(DIST, '404.html'), build({ path: '/404', title: 'Page not found | Modexa', description: 'This page could not be found.', h1: 'Page not found', body: '<p>The page you are looking for does not exist. Try the <a href="/mods">mod library</a>.</p>', noindex: true, type: 'website', ld: [] }))
 
+// /admin shell: no prerendered content, never indexed (otherwise the host would serve the home page HTML here)
+{
+  let h = template
+  h = h.replace(/<title>[\s\S]*?<\/title>/, '<title>Modexa Admin</title>')
+  h = setMeta(h, 'name', 'robots', 'noindex,nofollow')
+  h = h.replace(/<link rel="canonical"[^>]*>\n?/, '').replace(/<meta property="og:url"[^>]*>\n?/, '')
+  h = h.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\n?/, '')
+  write('/admin', h.split('__SITE_URL__').join(SITE_URL))
+}
+
 // ---------- sitemap, robots, llms.txt ----------
 const today = new Date().toISOString().slice(0, 10)
 const indexable = routes.filter(r => !r.noindex && !r.canonical)

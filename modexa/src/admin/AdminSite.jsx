@@ -10,7 +10,7 @@ export default function AdminSite({ onNotice, onError }) {
   async function save(e) {
     e.preventDefault(); setBusy(true)
     const { id, updated_at, ...payload } = f
-    const { error } = await supabase.from('site_settings').upsert({ id: 1, ...payload })
+    const { error } = await supabase.from('site_settings').update(payload).eq('id', 1)
     setBusy(false)
     if (error) { onError(error.message); return }
     setSettingsCache({ ...payload }); onNotice('Site settings saved. Public site par turant update ho jayega.')
