@@ -19,7 +19,7 @@ export default function AdminSite({ onNotice, onError }) {
   return <form className="admin-editor" onSubmit={save}>
     <div className="editor-heading"><div><small>SITE SETTINGS</small><h2>Brand, announcement & contact</h2></div></div>
     <div className="editor-fields">
-      <div className="form-row"><label>Site name<input value={f.site_name} onChange={set('site_name')} maxLength={60}/></label><label>Contact email<input type="email" value={f.contact_email} onChange={set('contact_email')} placeholder="hello@yourdomain.com"/></label></div>
+      <div className="form-row"><label>Site name<input value={f.site_name} onChange={set('site_name')} maxLength={60}/></label><label>Contact email<input type="email" value={f.contact_email} onChange={set('contact_email')} placeholder="hello@modexa.online"/></label></div>
       <label>Footer tagline<input value={f.tagline} onChange={set('tagline')} maxLength={160}/></label>
       <div className="mod-specific-fields">
         <label className="inline-check"><input type="checkbox" checked={!!f.announcement_active} onChange={set('announcement_active')}/> Show announcement bar on top of the website</label>

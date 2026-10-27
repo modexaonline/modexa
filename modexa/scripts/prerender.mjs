@@ -7,12 +7,13 @@ import { dirname, join } from 'node:path'
 import { PAGES, POLICY_SLUGS } from '../src/content/legal.js'
 import { LISTING, gameContent, categoryContent } from '../src/content/seo.js'
 import { SITE, NAV, LEGAL_LINKS } from '../src/content/site.js'
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_KEY, PUBLIC_SITE_URL } from '../src/lib/publicConfig.js'
 
 const env = { ...process.env }
 if (existsSync('.env')) for (const l of readFileSync('.env', 'utf8').split('\n')) { const m = l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/); if (m && !(m[1] in env)) env[m[1]] = m[2].replace(/^["']|["']$/g, '') }
-let SITE_URL = (env.SITE_URL || env.VITE_SITE_URL || '').replace(/\/$/, '')
+let SITE_URL = (env.SITE_URL || env.VITE_SITE_URL || PUBLIC_SITE_URL || '').replace(/\/$/, '')
 if (!SITE_URL || SITE_URL.includes('yourdomain')) { console.warn('⚠ SITE_URL is not set — using https://yourdomain.com. Set SITE_URL in your hosting environment for correct canonical URLs and sitemap.'); SITE_URL = 'https://yourdomain.com' }
-const SB = (env.VITE_SUPABASE_URL || '').replace(/\/$/, ''), KEY = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || ''
+const SB = (env.VITE_SUPABASE_URL || PUBLIC_SUPABASE_URL || '').replace(/\/$/, ''), KEY = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || PUBLIC_SUPABASE_KEY || ''
 const live = SB && KEY && !SB.includes('YOUR_PROJECT_ID')
 const DIST = 'dist'
 const template = readFileSync(join(DIST, 'index.html'), 'utf8')

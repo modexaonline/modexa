@@ -7,7 +7,7 @@ Public website + secure admin studio. Frontend: React/Vite. Backend: Supabase (A
 npm install
 npm run dev          # http://localhost:5173  (admin: /admin)
 ```
-`.env` already contains the Supabase URL + publishable key of project `modexa`. **Set `SITE_URL` to your real domain** (e.g. `https://modexa.com`).
+`.env` already contains the Supabase URL + publishable key of project `modexa`. **Set `SITE_URL` to your real domain** (already set to `https://modexa.online`).
 
 ## Deploy (Vercel / Netlify / Cloudflare Pages)
 - Build command: `npm run build`   Output: `dist`
@@ -31,3 +31,16 @@ The policy pages describe how this site actually works today (no accounts, no tr
 
 ## Theme
 White background, black text/UI, green accent. Tokens are at the top of `src/theme.css` (`--green-700`, `--black`, …).
+
+---
+
+## Vercel deploy: Supabase connection
+
+Vercel does not upload your local `.env` file. This project now ships `src/lib/publicConfig.js` with the
+Supabase URL and **publishable** key, so the admin login works even if you set nothing in Vercel.
+(The publishable key is meant to be public. Security comes from Row Level Security. Never paste a
+`secret` or `service_role` key into any file in this project.)
+
+To override from Vercel instead: Project > Settings > Environment Variables, add
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `SITE_URL` (your real domain), then redeploy.
+Variables set there take priority over `publicConfig.js`.
