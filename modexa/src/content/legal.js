@@ -190,3 +190,9 @@ export const PAGES = {
   },
 }
 export const POLICY_SLUGS = ['about', 'contact', 'privacy', 'terms', 'cookies', 'copyright', 'guidelines', 'faq']
+
+// Added automatically to the Privacy / Cookie pages when Admin > Site settings > "Ads enabled" is ON.
+export const ADS_SECTIONS = {
+  privacy: { id: 'advertising', h: 'Advertising', p: ['Modexa may show advertisements provided by third-party advertising partners. With your consent (where required), these partners may use cookies or similar technologies, and receive technical data such as your IP address and device information, to show, limit and measure ads and to prevent fraud.', 'We do not give advertising partners your name or message content. Ads are labelled, and links to sponsors use rel="sponsored". You can change your cookie choice at any time using “Cookie settings” in the footer. Each partner has its own privacy policy — please review it.'] },
+  cookies: { id: 'advertising', h: 'Advertising cookies', p: ['When advertising is enabled, ad partners may place cookies or use local storage to show relevant ads, cap how often you see an ad, measure performance and detect invalid traffic. These items are loaded only after you choose “Accept all” in the cookie notice (where consent is required).'], ul: ['**Essential only:** no advertising cookies are loaded.', '**Accept all:** advertising partners may set cookies in addition to the essential items listed above.', 'You can change your choice any time via “Cookie settings” in the footer or by clearing site data in your browser.'] },
+}

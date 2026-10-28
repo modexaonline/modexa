@@ -14,6 +14,17 @@ npm run dev          # http://localhost:5173  (admin: /admin)
 - Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, **`SITE_URL`**
 - `npm run build` = `vite build` + `scripts/prerender.mjs`. The prerender step writes a real HTML file for every important page (title, meta, canonical, JSON-LD, readable text) and generates `sitemap.xml`, `robots.txt` and `llms.txt`. It also pulls your published mods, guides and custom pages from Supabase. **Re-deploy after publishing new content** (or add a Supabase webhook → deploy hook) so new pages get their own static HTML + sitemap entry.
 
+## New in v5 — Ads, Games → Blog, Website editor
+All of this lives in **Admin** (sidebar):
+- **Ads manager** — add banners (every standard size: 300×250, 728×90, 320×50, 970×250, 300×600, 160×600, responsive, custom…), native/script ads, pop-under and social-bar scripts, custom HTML (AdSense etc.) and **direct links** (button / card / text). Pick the placement once and it runs on every matching blog automatically: top of article, inside content (after paragraph N, optionally repeated), end of article, mod pages, home, sticky footer bar, or site-wide scripts. Target all blogs, selected posts or selected games; exclude posts; desktop-only or mobile-only. Use `[ad:shortcode]` inside a post for an exact spot. Banners render in a sandboxed iframe (cannot read your site data); switch a unit to *Inline* for AdSense-style code.
+- **Blog editor toolbar** — headings, bold, links, images, **Direct link button** (`[btn:Label](https://…)`, rel=sponsored) and an **Insert ad** dropdown. Each post has a *Game* selector and a *Show ads on this post* switch.
+- **Consent** — with “Load ads only after the visitor accepts cookies” ON (default), nothing loads until *Accept all*; Privacy and Cookie policies automatically gain an Advertising section while ads are enabled.
+- **Games** — controls the home page “Browse by game” container. Clicking a game opens its chosen blog (or its newest linked guide); if it has none it opens the game hub page.
+- **Website editor** — edit text, SEO title/description, quick-answer box, sections, FAQs of **every page** (About, Contact, Privacy, Terms, Cookies, Copyright, Guidelines, FAQ, Mods, Games, Categories, Trending, Latest, Blog, Submit…), the **Home page** (hero, section headings, steps, cards, CTA) and the **header/footer menus**. “Reset to default” restores the built-in text.
+- **Site & brand** — name, logo, default share image, footer text, social links, announcement bar, ads master switches.
+
+Database: `supabase/v5_ads_games_cms.sql` (already applied to project `modexa`).
+
 ## Supabase
 Schema (`supabase/schema.sql`) is already applied to project `modexa`. Admin login: username `admin` (maps to `admin@modexa.local`). Change the password in Supabase → Authentication → Users and keep public sign-ups OFF.
 
@@ -24,7 +35,7 @@ Schema (`supabase/schema.sql`) is already applied to project `modexa`. Admin log
 | **AEO** (answer engines, featured snippets, voice) | Every page opens with an answer-first “Quick answer” box, question-style headings and FAQ accordions with `FAQPage` schema; mods get `SoftwareApplication` + `HowTo` schema; guides get `Article`. |
 | **GEO** (ChatGPT, Claude, Perplexity, Gemini…) | Prerendered HTML so AI crawlers that do not run JavaScript still read full content; `llms.txt` site summary; `robots.txt` explicitly allows GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, PerplexityBot, Google-Extended; clear entity info (Organization/WebSite schema, About page, last-updated dates, creator attribution). |
 
-Content lives in `src/content/` (`legal.js` = About, Contact, Privacy, Terms, Cookies, Copyright/DMCA, Guidelines, FAQ; `seo.js` = listing pages + home). Edit text there. You can also override any of these pages without code: Admin → Website pages → create a **published** page with the same slug (`privacy`, `terms`, `cookies`, `about`…).
+Content lives in `src/content/` (`legal.js` = About, Contact, Privacy, Terms, Cookies, Copyright/DMCA, Guidelines, FAQ; `seo.js` = listing pages + home). Edit text there. Prefer not to touch code? Use **Admin → Website editor** (it overrides the built-in text; “Custom pages” is for brand-new pages).
 
 ## Legal pages — please review
 The policy pages describe how this site actually works today (no accounts, no tracking cookies, Supabase + hosting providers as processors, forms for contact/submissions). They are solid starting templates, **not legal advice**. Before launch: confirm governing law/jurisdiction wording, add your business/contact details, and update the Privacy and Cookie policies if you add analytics, ads or newsletters (and then add a consent choice).

@@ -5,6 +5,7 @@ import SEO from '../components/SEO'
 import SeoContent from '../components/SeoContent'
 import Breadcrumbs from '../components/Breadcrumbs'
 import { LISTING } from '../content/seo'
+import { usePageContent } from '../lib/siteContent'
 
 import PageHero from '../components/PageHero'
 import ModGrid from '../components/ModGrid'
@@ -44,7 +45,8 @@ export default function ModsPage({ savedIds, onToggleSave, initialMode = 'all' }
   }, [query, category, game, platform, sort, initialMode, mods])
 
   const reset = () => { setQuery(''); setCategory('All categories'); setGame('All games'); setPlatform('All platforms'); setParams({}) }
-  const seoData = LISTING[initialMode === 'trending' ? 'trending' : initialMode === 'latest' ? 'latest' : 'mods']
+  const listKey = initialMode === 'trending' ? 'trending' : initialMode === 'latest' ? 'latest' : 'mods'
+  const seoData = usePageContent('listing:' + listKey, LISTING[listKey])
   const title = initialMode === 'trending' ? 'Trending mods' : initialMode === 'latest' ? 'Latest mods' : 'Explore mods'
   return <>
     <SEO fullTitle={seoData.seoTitle} description={seoData.description} pageType="CollectionPage" breadcrumbs={[{label:'Home',to:'/'},{label:title,to:seoData.path}]} faqs={seoData.faqs}/>

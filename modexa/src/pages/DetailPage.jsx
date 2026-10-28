@@ -8,6 +8,8 @@ import { useState } from 'react'
 import SafeImg from '../components/SafeImg'
 import ShareButton from '../components/ShareButton'
 import { PageSkeleton } from '../components/Skeleton'
+import AdSlot from '../components/AdSlot'
+import { slugify } from '../lib/format'
 import { supabase, supabaseConfigured } from '../lib/supabase'
 
 export default function DetailPage({ savedIds, onToggleSave }) {
@@ -36,7 +38,7 @@ export default function DetailPage({ savedIds, onToggleSave }) {
       <div className="detail-hero">
         <div className="detail-art"><SafeImg src={mod.image} alt={`${mod.title} preview`} /><span className="detail-art-overlay"/><span className="detail-art-tag">{mod.category}</span></div>
         <div className="detail-summary">
-          <div className="eyebrow"><span className="eyebrow-line"/> MOD PROFILE</div>
+          <div className="eyebrow">MOD PROFILE</div>
           <h1>{mod.title}</h1>
           <p className="detail-lead">{mod.short}</p>
           <div className="detail-game-line"><span className="game-mini-icon"><Monitor size={16}/></span><span>For <strong>{mod.game}</strong></span><span className="meta-dot">·</span><span>{mod.platform}</span></div>
@@ -56,9 +58,10 @@ export default function DetailPage({ savedIds, onToggleSave }) {
           </section>
           <section className="download-info-box" id="download-info"><div className="download-info-icon"><Info size={22}/></div><div><h3>{mod.downloadUrl ? "Official source & download" : "Download source not configured"}</h3><p>{mod.downloadUrl ? "You are leaving Modexa for the source supplied by the listing editor. Confirm the URL, game version, license and permissions before downloading." : "The editor has not added a verified creator URL yet. Modexa does not provide a file for this listing until an authorized source is configured."}</p>{mod.downloadUrl && <a className="button button-primary" href={mod.downloadUrl} target="_blank" rel="noopener noreferrer nofollow" onClick={trackDownload}>Visit creator source <ExternalLink size={16}/></a>}</div></section>
         </div>
-        <aside className="detail-sidebar"><div className="sidebar-panel"><h3>Listing details</h3><div className="sidebar-row"><span>Creator</span><strong>{mod.creator}</strong></div><div className="sidebar-row"><span>Version</span><strong>{mod.version}</strong></div><div className="sidebar-row"><span>Updated</span><strong>{mod.updated}</strong></div><div className="sidebar-row"><span>Platform</span><strong>{mod.platform}</strong></div><div className="sidebar-row"><span>Category</span><strong>{mod.category}</strong></div><div className="verified-note"><ShieldCheck size={17}/><span>Check original source before installing</span></div></div><div className="sidebar-panel creator-panel"><span className="creator-avatar"><UserRound size={22}/></span><h3>Support creators</h3><p>Follow original creator links, review licenses, and give credit where it is due.</p><Link to="/guidelines" className="text-link">Read our guidelines <ArrowUpRight size={15}/></Link></div></aside>
+        <aside className="detail-sidebar"><AdSlot placement="mod_sidebar" gameSlug={slugify(mod.game)}/><div className="sidebar-panel"><h3>Listing details</h3><div className="sidebar-row"><span>Creator</span><strong>{mod.creator}</strong></div><div className="sidebar-row"><span>Version</span><strong>{mod.version}</strong></div><div className="sidebar-row"><span>Updated</span><strong>{mod.updated}</strong></div><div className="sidebar-row"><span>Platform</span><strong>{mod.platform}</strong></div><div className="sidebar-row"><span>Category</span><strong>{mod.category}</strong></div><div className="verified-note"><ShieldCheck size={17}/><span>Check original source before installing</span></div></div><div className="sidebar-panel creator-panel"><span className="creator-avatar"><UserRound size={22}/></span><h3>Support creators</h3><p>Follow original creator links, review licenses, and give credit where it is due.</p><Link to="/guidelines" className="text-link">Read our guidelines <ArrowUpRight size={15}/></Link></div></aside>
       </div>
-      {related.length > 0 && <section className="related-section"><div className="section-heading"><div><div className="eyebrow"><span className="eyebrow-line"/> KEEP EXPLORING</div><h2>Related <span className="text-gradient">mods</span></h2></div><Link to="/mods" className="text-link">View all <ArrowUpRight size={16}/></Link></div><div className="mods-grid">{related.map(m => <ModCard key={m.id} mod={m} saved={savedIds.includes(m.id)} onToggleSave={onToggleSave}/>)}</div></section>}
+      <AdSlot placement="mod_bottom" gameSlug={slugify(mod.game)}/>
+      {related.length > 0 && <section className="related-section"><div className="section-heading"><div><div className="eyebrow">KEEP EXPLORING</div><h2>Related <span className="text-gradient">mods</span></h2></div><Link to="/mods" className="text-link">View all <ArrowUpRight size={16}/></Link></div><div className="mods-grid">{related.map(m => <ModCard key={m.id} mod={m} saved={savedIds.includes(m.id)} onToggleSave={onToggleSave}/>)}</div></section>}
       {!supabaseConfigured && <p className="micro-disclaimer">*Demo mode: engagement counts are illustrative sample data.</p>}
     </div>
   </>

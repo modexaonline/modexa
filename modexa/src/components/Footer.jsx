@@ -3,11 +3,15 @@ import { Heart, Mail, Twitter, Youtube, MessageCircle } from 'lucide-react'
 import Logo from './Logo'
 import usePublicPages from '../lib/usePublicPages'
 import { useSettings } from '../lib/useSettings'
+import { usePageContent } from '../lib/siteContent'
+import { NAV_DEFAULT } from '../content/merge'
+import { openConsent } from '../lib/consent'
 import { supabaseConfigured } from '../lib/supabase'
 
 export default function Footer() {
   const customPages = usePublicPages('show_in_footer')
   const s = useSettings()
+  const nav = usePageContent('nav', NAV_DEFAULT)
   return <footer className="site-footer">
     <div className="footer-top">
       <div className="footer-brand-col">
@@ -20,11 +24,10 @@ export default function Footer() {
           {s.contact_email && <a href={`mailto:${s.contact_email}`} aria-label="Email us"><Mail size={16}/></a>}
         </div>
       </div>
-      <div className="footer-column"><h4>Discover</h4><Link to="/mods">Explore Mods</Link><Link to="/games">Games</Link><Link to="/categories">Categories</Link><Link to="/trending">Trending</Link><Link to="/latest">Latest</Link></div>
-      <div className="footer-column"><h4>Community</h4><Link to="/submit-mod">Submit a Mod</Link><Link to="/blog">Guides &amp; Blog</Link><Link to="/guidelines">Community Guidelines</Link><Link to="/faq">FAQ</Link><Link to="/about">About</Link></div>
-      <div className="footer-column"><h4>Information</h4><Link to="/contact">Contact</Link><Link to="/privacy">Privacy Policy</Link><Link to="/terms">Terms of Use</Link><Link to="/cookies">Cookie Policy</Link><Link to="/copyright">Copyright &amp; DMCA</Link>{customPages.map(page => <Link key={page.slug} to={`/page/${page.slug}`}>{page.title}</Link>)}</div>
+      {nav.footer.map((g, gi) => <div className="footer-column" key={g.title + gi}><h4>{g.title}</h4>{g.links.map(l => /^https?:/.test(l.to) ? <a key={l.to + l.label} href={l.to} target="_blank" rel="noopener noreferrer">{l.label}</a> : <Link key={l.to + l.label} to={l.to}>{l.label}</Link>)}{gi === nav.footer.length - 1 && customPages.map(page => <Link key={page.slug} to={`/page/${page.slug}`}>{page.title}</Link>)}</div>)}
     </div>
-    <div className="footer-bottom"><span>© {new Date().getFullYear()} {s.site_name || 'Modexa'}. All rights reserved.</span><span>Made for the love of games <Heart size={13} className="heart-icon" fill="currentColor"/></span></div>
+    <div className="footer-bottom"><span>© {new Date().getFullYear()} {s.site_name || 'Modexa'}. All rights reserved.</span>{s.ads_enabled && s.ads_require_consent && <button type="button" className="footer-link-btn" onClick={openConsent}>Cookie settings</button>}<span>Made for the love of games <Heart size={13} className="heart-icon" fill="currentColor"/></span></div>
+    {s.footer_text && <p className="disclaimer footer-extra">{s.footer_text}</p>}
     <p className="disclaimer">{supabaseConfigured ? 'Modexa is an independent discovery site and is not affiliated with game publishers. Downloads open the creator’s own source — always check permissions and compatibility.' : 'Modexa is an independent discovery concept and is not affiliated with game publishers. Demo listings are illustrative and do not provide real downloads.'}</p>
   </footer>
 }

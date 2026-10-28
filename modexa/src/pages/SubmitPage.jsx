@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { CheckCircle2, UploadCloud, Send, ShieldCheck } from 'lucide-react'
 import SEO from '../components/SEO'
 import SeoContent from '../components/SeoContent'
+import { usePageContent } from '../lib/siteContent'
 import { LISTING } from '../content/seo'
 
 import PageHero from '../components/PageHero'
@@ -11,6 +12,7 @@ import { supabase, supabaseConfigured } from '../lib/supabase'
 import useModsData from '../lib/useMods'
 
 export default function SubmitPage() {
+  const L = usePageContent('listing:submit', LISTING.submit)
   const [submitted, setSubmitted] = useState(false)
   const [form, setForm] = useState({ title:'', game:'', category:'', platform:'PC', creator:'', source:'', description:'', license:false, website:'' })
   const [error, setError] = useState('')
@@ -40,8 +42,8 @@ export default function SubmitPage() {
     setSubmitted(true)
   }
   return <>
-    <SEO fullTitle={LISTING.submit.seoTitle} description={LISTING.submit.description} breadcrumbs={[{label:'Home',to:'/'},{label:'Submit a Mod',to:'/submit-mod'}]} faqs={LISTING.submit.faqs}/>
-    <PageHero eyebrow="SHARE YOUR CREATION" title={<>Give your mod a <span className="text-gradient">spotlight.</span></>} description={LISTING.submit.description}/>
+    <SEO fullTitle={L.seoTitle} description={L.description} breadcrumbs={[{label:'Home',to:'/'},{label:'Submit a Mod',to:'/submit-mod'}]} faqs={L.faqs}/>
+    <PageHero eyebrow="SHARE YOUR CREATION" title={<>Give your mod a <span className="text-gradient">spotlight.</span></>} description={L.description}/>
     <section className="directory-section submit-section"><div className="container submit-layout">
       <div className="submit-main">
         {submitted ? <div className="submission-success"><CheckCircle2 size={42}/><h2>{supabaseConfigured ? 'Submission received' : 'Demo submission complete'}</h2><p>{supabaseConfigured ? 'Shukriya! Hamari team aapki listing review karegi. Approve hone par woh site par publish hogi.' : 'Demo mode: no data was sent. Connect Supabase to receive real submissions in the admin inbox.'}</p><button className="button button-primary" onClick={() => {setSubmitted(false); setForm({title:'',game:'',category:'',platform:'PC',creator:'',source:'',description:'',license:false,website:''})}}>Submit another</button></div> :
@@ -62,6 +64,6 @@ export default function SubmitPage() {
       </div>
       <aside className="submit-sidebar"><div className="submit-aside-card"><span className="aside-icon"><UploadCloud size={22}/></span><h3>Before you submit</h3><ul><li>Provide accurate compatibility details.</li><li>Link to an authorized source.</li><li>Credit all original creators.</li><li>Respect licenses and game publisher rules.</li><li>Do not submit malware or misleading files.</li></ul></div><div className="submit-aside-card aside-muted"><h3>What happens next?</h3><p>Our team checks the source link, description and rights. Approved mods are published with your name and a link to your page. See our <Link to="/guidelines">Community Guidelines</Link>.</p></div></aside>
     </div></section>
-    <SeoContent data={LISTING.submit}/>
+    <SeoContent data={L}/>
   </>
 }

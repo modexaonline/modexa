@@ -3,20 +3,16 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Search, Menu, X, Bookmark } from 'lucide-react'
 import Logo from './Logo'
 import usePublicPages from '../lib/usePublicPages'
+import { usePageContent } from '../lib/siteContent'
+import { NAV_DEFAULT } from '../content/merge'
 
-const links = [
-  { to: '/mods', label: 'Explore Mods' },
-  { to: '/games', label: 'Games' },
-  { to: '/categories', label: 'Categories' },
-  { to: '/trending', label: 'Trending' },
-  { to: '/blog', label: 'Guides & Blog' },
-]
 
 export default function Header({ savedCount = 0 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [scrolled, setScrolled] = useState(false)
   const customPages = usePublicPages('show_in_menu')
+  const links = usePageContent('nav', NAV_DEFAULT).header
   const navigate = useNavigate()
   const location = useLocation()
   const searchRef = useRef(null)

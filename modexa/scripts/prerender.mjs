@@ -4,7 +4,8 @@
 // It also generates sitemap.xml, robots.txt and llms.txt. The React app takes over in the browser as usual.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { PAGES, POLICY_SLUGS } from '../src/content/legal.js'
+import { PAGES, POLICY_SLUGS, ADS_SECTIONS } from '../src/content/legal.js'
+import { mergeContent, HOME_DEFAULT, NAV_DEFAULT } from '../src/content/merge.js'
 import { LISTING, gameContent, categoryContent } from '../src/content/seo.js'
 import { SITE, NAV, LEGAL_LINKS } from '../src/content/site.js'
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_KEY, PUBLIC_SITE_URL } from '../src/lib/publicConfig.js'
@@ -21,7 +22,7 @@ const template = readFileSync(join(DIST, 'index.html'), 'utf8')
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const slugify = v => String(v || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 const plain = s => String(s ?? '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-const inline = s => esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => `<a href="${u.startsWith('/') ? SITE_URL + u : u}">${t}</a>`)
+const inline = s => esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => `<a href="${u.startsWith('/') ? SITE_URL + u : u}"${t.startsWith('btn:') ? ' rel="sponsored nofollow"' : ''}>${t.replace(/^btn:/, '')}</a>`)
 const clip = (s, n) => { s = String(s ?? '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s }
 
 async function rest(table, select = '*', filter = '') {
@@ -29,19 +30,22 @@ async function rest(table, select = '*', filter = '') {
   if (!r.ok) throw new Error(`${table} ${r.status}`)
   return r.json()
 }
-let mods = [], posts = [], cpages = [], settings = {}
+let mods = [], posts = [], cpages = [], settings = {}, games = [], content = {}
 if (live) {
   try { mods = await rest('mods', '*', '&status=eq.published&order=published_at.desc') } catch (e) { console.warn('mods:', e.message) }
   try { posts = await rest('posts', '*', '&status=eq.published&order=published_at.desc') } catch (e) { console.warn('posts:', e.message) }
   try { cpages = await rest('pages', '*', '&status=eq.published') } catch (e) { console.warn('pages:', e.message) }
   try { settings = (await rest('site_settings', '*', '&id=eq.1'))[0] || {} } catch {}
+  try { games = await rest('games', '*', '&status=eq.published&order=sort_order.asc') } catch (e) { console.warn('games:', e.message) }
+  try { for (const r of await rest('site_content', 'key,data')) content[r.key] = r.data } catch (e) { console.warn('site_content:', e.message) }
 } else console.log('Supabase not configured: prerendering static pages only.')
 
 // ---------- html building blocks ----------
 const sectionsHtml = (sections = []) => sections.map(s => `<section id="${esc(s.id)}"><h2>${esc(s.h)}</h2>${(s.p || []).map(t => `<p>${inline(t)}</p>`).join('')}${s.ul ? `<ul>${s.ul.map(t => `<li>${inline(t)}</li>`).join('')}</ul>` : ''}${s.ol ? `<ol>${s.ol.map(t => `<li>${inline(t)}</li>`).join('')}</ol>` : ''}${s.table ? `<table><thead><tr>${s.table.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${s.table.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : ''}${s.note ? `<p>${inline(s.note)}</p>` : ''}</section>`).join('')
 const faqHtml = (faqs = []) => faqs.length ? `<section id="faq"><h2>Frequently asked questions</h2>${faqs.map(f => `<h3>${esc(f.q)}</h3><p>${inline(f.a)}</p>`).join('')}</section>` : ''
 const answerHtml = a => a ? `<aside><strong>${esc(a.q)}</strong><p>${inline(a.a)}</p></aside>` : ''
-const navHtml = () => `<nav aria-label="Main">${[{ to: '/', label: 'Home' }, ...NAV].map(n => `<a href="${SITE_URL}${n.to}">${esc(n.label)}</a>`).join(' · ')}</nav>`
+const NAVL = mergeContent(NAV_DEFAULT, content.nav).header
+const navHtml = () => `<nav aria-label="Main">${[{ to: '/', label: 'Home' }, ...NAVL].map(n => `<a href="${SITE_URL}${n.to}">${esc(n.label)}</a>`).join(' · ')}</nav>`
 const footHtml = () => `<footer><nav aria-label="Legal">${LEGAL_LINKS.map(n => `<a href="${SITE_URL}${n.to}">${esc(n.label)}</a>`).join(' · ')}</nav><p>© ${new Date().getFullYear()} Modexa. Independent; not affiliated with game publishers.</p></footer>`
 const crumbsLd = (url, items) => ({ '@type': 'BreadcrumbList', itemListElement: items.map((b, i) => ({ '@type': 'ListItem', position: i + 1, name: b.label, item: SITE_URL + (b.to || url) })) })
 const faqLd = faqs => ({ '@type': 'FAQPage', mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: plain(f.a) } })) })
@@ -51,6 +55,7 @@ function md(src = '') {
   const fp = () => { if (para.length) { out += `<p>${inline(para.join(' '))}</p>`; para = [] } }, fl = () => { if (list) { out += `</${list}>`; list = null } }
   for (const raw of lines) { const l = raw.trim(); let m
     if (!l) { fp(); fl(); continue }
+    if (/^\[ad:[a-z0-9-]+\]$/i.test(l)) { fp(); fl(); continue }
     if ((m = l.match(/^###\s+(.*)$/))) { fp(); fl(); out += `<h3>${inline(m[1])}</h3>` }
     else if ((m = l.match(/^##\s+(.*)$/))) { fp(); fl(); out += `<h2>${inline(m[1])}</h2>` }
     else if ((m = l.match(/^[-*•]\s+(.*)$/))) { fp(); if (list !== 'ul') { fl(); out += '<ul>'; list = 'ul' } out += `<li>${inline(m[1])}</li>` }
@@ -62,17 +67,19 @@ function md(src = '') {
 // ---------- route table ----------
 const routes = []
 const add = r => routes.push({ type: 'website', image: '', noindex: false, ld: [], ...r })
-const homeL = LISTING.home
-add({ path: '/', title: homeL.seoTitle, description: homeL.description, h1: homeL.h1,
-  body: `<p>${esc(SITE.description)}</p>${answerHtml(homeL.answer)}<section><h2>How Modexa works</h2><ol>${homeL.steps.map(s => `<li><strong>${esc(s.t)}.</strong> ${esc(s.d)}</li>`).join('')}</ol></section><section><h2>Why Modexa</h2><ul>${homeL.values.map(v => `<li><strong>${esc(v.t)}.</strong> ${esc(v.d)}</li>`).join('')}</ul></section>${sectionsHtml(homeL.sections)}${faqHtml(homeL.faqs)}`,
+const homeL = mergeContent({ ...LISTING.home, ...HOME_DEFAULT }, content.home)
+const postsByGame = g => posts.filter(p => p.game_slug === g.slug)
+const gameHref = g => { const chosen = g.blog_slug && posts.find(p => p.slug === g.blog_slug); if (chosen) return '/blog/' + chosen.slug; const first = postsByGame(g)[0]; return first ? '/blog/' + first.slug : '/games/' + g.slug }
+add({ path: '/', title: homeL.seoTitle, description: homeL.description, h1: `${homeL.hero.line1} ${homeL.hero.line2}`,
+  body: `<p>${esc(homeL.hero.description)}</p>${answerHtml(homeL.answer)}${games.length ? `<section><h2>${esc(homeL.headings.games.title)} ${esc(homeL.headings.games.accent)}</h2><ul>${games.filter(g => g.show_on_home).map(g => `<li><a href="${SITE_URL}${gameHref(g)}">${esc(g.name)}</a></li>`).join('')}</ul></section>` : ''}<section><h2>${esc(homeL.headings.how.title)} ${esc(homeL.headings.how.accent)}</h2><ol>${homeL.steps.map(s => `<li><strong>${esc(s.t)}.</strong> ${esc(s.d)}</li>`).join('')}</ol></section><section><h2>${esc(homeL.headings.why.title)} ${esc(homeL.headings.why.accent)}</h2><ul>${homeL.values.map(v => `<li><strong>${esc(v.t)}.</strong> ${esc(v.d)}</li>`).join('')}</ul></section>${sectionsHtml(homeL.sections)}${faqHtml(homeL.faqs)}`,
   ld: [pageLd('/', homeL.seoTitle, homeL.description), faqLd(homeL.faqs)] })
 for (const k of ['mods', 'trending', 'latest', 'games', 'categories', 'blog', 'submit']) {
-  const L = LISTING[k]
+  const L = mergeContent(LISTING[k], content['listing:' + k])
   add({ path: L.path, title: L.seoTitle, description: L.description, h1: L.h1, body: `${answerHtml(L.answer)}${sectionsHtml(L.sections)}${faqHtml(L.faqs)}`,
     ld: [pageLd(L.path, L.seoTitle, L.description, k === 'submit' ? 'WebPage' : 'CollectionPage'), crumbsLd(L.path, [{ label: 'Home', to: '/' }, { label: L.h1, to: L.path }]), ...(L.faqs.length ? [faqLd(L.faqs)] : [])] })
 }
 for (const slug of POLICY_SLUGS) {
-  const P = PAGES[slug], path = '/' + slug
+  const P0 = mergeContent(PAGES[slug], content['page:' + slug]), P = settings.ads_enabled && ADS_SECTIONS[slug] && !(P0.sections || []).some(x => x.id === 'advertising') ? { ...P0, sections: [...(P0.sections || []), ADS_SECTIONS[slug]] } : P0, path = '/' + slug
   add({ path, title: P.seoTitle, description: P.description, h1: P.h1, body: `<p>Last updated ${esc(SITE.updatedLabel)}.</p>${answerHtml(P.answer)}${sectionsHtml(P.sections)}${faqHtml(P.faqs)}`,
     ld: [pageLd(path, P.seoTitle, P.description, P.type, { dateModified: P.updated }), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: P.title, to: path }]), ...(P.faqs?.length ? [faqLd(P.faqs)] : [])] })
 }
@@ -88,10 +95,11 @@ for (const m of mods) {
       { '@type': 'SoftwareApplication', name: m.title, applicationCategory: 'GameApplication', operatingSystem: m.platform, description: m.excerpt || m.description, image: m.cover_image || undefined, softwareVersion: m.version || undefined, author: { '@type': 'Person', name: m.creator || 'Community creator' } },
       ...(Array.isArray(m.install) && m.install.length ? [{ '@type': 'HowTo', name: `How to install ${m.title}`, step: m.install.map((t, i) => ({ '@type': 'HowToStep', position: i + 1, text: String(t) })) }] : [])] })
 }
-const games = new Map(), cats = new Map()
-for (const m of mods) { if (m.game) games.set(slugify(m.game), m.game); if (m.category) cats.set(m.category.toLowerCase().replaceAll(' & ', '-').replaceAll(' ', '-'), m.category) }
-for (const [s, name] of games) { const c = gameContent(name, mods.filter(m => m.game === name).length), path = '/games/' + s, t = `${name} Mods — Browse Community Mods | Modexa`, d = `Browse ${name} mods on Modexa: compare versions, platforms and requirements, then download from the creator’s original page.`
-  add({ path, title: t, description: d, h1: `${name} mods`, body: `${answerHtml(c.answer)}<ul>${mods.filter(m => m.game === name).map(m => `<li><a href="${SITE_URL}/mods/${m.slug}">${esc(m.title)}</a> — ${esc(m.excerpt || '')}</li>`).join('')}</ul>${sectionsHtml(c.sections)}${faqHtml(c.faqs)}`, ld: [pageLd(path, t, d, 'CollectionPage'), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: 'Games', to: '/games' }, { label: name, to: path }]), faqLd(c.faqs)] }) }
+const gamesMap = new Map(), cats = new Map()
+for (const g of games) gamesMap.set(g.slug, g.name)
+for (const m of mods) { if (m.game && !gamesMap.has(slugify(m.game))) gamesMap.set(slugify(m.game), m.game); if (m.category) cats.set(m.category.toLowerCase().replaceAll(' & ', '-').replaceAll(' ', '-'), m.category) }
+for (const [s, name] of gamesMap) { const gp = posts.filter(p => p.game_slug === s), c = gameContent(name, mods.filter(m => slugify(m.game) === s).length), path = '/games/' + s, t = `${name} Mods — Browse Community Mods | Modexa`, d = `Browse ${name} mods on Modexa: compare versions, platforms and requirements, then download from the creator’s original page.`
+  add({ path, title: t, description: d, h1: `${name} mods`, body: `${answerHtml(c.answer)}${gp.length ? `<h2>${esc(name)} guides</h2><ul>${gp.map(p => `<li><a href="${SITE_URL}/blog/${p.slug}">${esc(p.title)}</a> — ${esc(p.excerpt || '')}</li>`).join('')}</ul>` : ''}<ul>${mods.filter(m => slugify(m.game) === s).map(m => `<li><a href="${SITE_URL}/mods/${m.slug}">${esc(m.title)}</a> — ${esc(m.excerpt || '')}</li>`).join('')}</ul>${sectionsHtml(c.sections)}${faqHtml(c.faqs)}`, ld: [pageLd(path, t, d, 'CollectionPage'), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: 'Games', to: '/games' }, { label: name, to: path }]), faqLd(c.faqs)] }) }
 for (const [s, name] of cats) { const c = categoryContent(name, mods.filter(m => m.category === name).length), path = '/categories/' + s, t = `${name} Mods — Browse by Category | Modexa`, d = `Browse ${name} mods on Modexa: compare games, versions and platforms, then download from the creator’s original page.`
   add({ path, title: t, description: d, h1: `${name} mods`, body: `${answerHtml(c.answer)}<ul>${mods.filter(m => m.category === name).map(m => `<li><a href="${SITE_URL}/mods/${m.slug}">${esc(m.title)}</a> — ${esc(m.excerpt || '')}</li>`).join('')}</ul>${sectionsHtml(c.sections)}${faqHtml(c.faqs)}`, ld: [pageLd(path, t, d, 'CollectionPage'), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: 'Categories', to: '/categories' }, { label: name, to: path }]), faqLd(c.faqs)] }) }
 for (const p of posts) {

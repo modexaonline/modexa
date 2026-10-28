@@ -3,17 +3,18 @@ import { Fragment } from 'react'
 // Safe markdown subset (no dangerouslySetInnerHTML): ## ### headings, paragraphs, - lists, 1. lists, > quotes, **bold**, *italic*, `code`, [text](https://link), ![alt](https://img)
 function inline(text, keyBase) {
   const out = []; let rest = String(text); let i = 0
-  const re = /(!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\))|(\[([^\]]+)\]\((https?:\/\/[^)\s]+)\))|(\*\*([^*]+)\*\*)|(`([^`]+)`)|(\*([^*]+)\*)/
+  const re = /(!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\))|(\[btn:([^\]]+)\]\((https?:\/\/[^)\s]+)\))|(\[([^\]]+)\]\((https?:\/\/[^)\s]+)\))|(\*\*([^*]+)\*\*)|(`([^`]+)`)|(\*([^*]+)\*)/
   while (rest) {
     const m = re.exec(rest)
     if (!m) { out.push(rest); break }
     if (m.index > 0) out.push(rest.slice(0, m.index))
     const k = `${keyBase}-${i++}`
     if (m[1]) out.push(<img key={k} src={m[3]} alt={m[2]} loading="lazy" className="md-img"/>)
-    else if (m[4]) out.push(<a key={k} href={m[6]} target="_blank" rel="noopener noreferrer nofollow">{m[5]}</a>)
-    else if (m[7]) out.push(<strong key={k}>{m[8]}</strong>)
-    else if (m[9]) out.push(<code key={k}>{m[10]}</code>)
-    else if (m[11]) out.push(<em key={k}>{m[12]}</em>)
+    else if (m[4]) out.push(<a key={k} href={m[6]} target="_blank" rel="sponsored nofollow noopener noreferrer" className="md-btn">{m[5]}</a>)
+    else if (m[7]) out.push(<a key={k} href={m[9]} target="_blank" rel="noopener noreferrer nofollow">{m[8]}</a>)
+    else if (m[10]) out.push(<strong key={k}>{m[11]}</strong>)
+    else if (m[12]) out.push(<code key={k}>{m[13]}</code>)
+    else if (m[14]) out.push(<em key={k}>{m[15]}</em>)
     rest = rest.slice(m.index + m[0].length)
   }
   return out
