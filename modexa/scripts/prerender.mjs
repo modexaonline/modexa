@@ -149,9 +149,9 @@ writeFileSync(join(DIST, '404.html'), build({ path: '/404', title: 'Page not fou
 const today = new Date().toISOString().slice(0, 10)
 const indexable = routes.filter(r => !r.noindex && !r.canonical)
 const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${indexable.map(r => `  <url><loc>${SITE_URL}${r.path === '/' ? '/' : r.path}</loc><lastmod>${r.lastmod || (PAGES[r.path.slice(1)]?.updated) || today}</lastmod></url>`).join('\n')}\n</urlset>\n`
-writeFileSync(join(DIST, 'sitemap.xml'), sitemap)
+writeFileSync(join(DIST, 'sitemap.default.xml'), sitemap) // served via /api/seo (admin can override)
 const bots = ['*', 'GPTBot', 'OAI-SearchBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-SearchBot', 'PerplexityBot', 'Google-Extended', 'Applebot-Extended']
-writeFileSync(join(DIST, 'robots.txt'), `# AI and search crawlers are welcome so Modexa can be cited accurately. Remove a group below to opt out.\n${bots.map(b => `User-agent: ${b}\nAllow: /\nDisallow: /admin\n`).join('\n')}\nSitemap: ${SITE_URL}/sitemap.xml\n`)
+writeFileSync(join(DIST, 'robots.default.txt'), `# AI and search crawlers are welcome so Modexa can be cited accurately. Remove a group below to opt out.\n${bots.map(b => `User-agent: ${b}\nAllow: /\nDisallow: /admin\n`).join('\n')}\nSitemap: ${SITE_URL}/sitemap.xml\n`)
 const llm = []
 llm.push(`# Modexa\n\n> ${SITE.description}\n\nModexa lists game mods and custom content with the supported game, platform, version, requirements and installation notes. It never re-hosts files: every download button opens the creator’s original page. Listings are reviewed manually. Modexa is independent and not affiliated with game publishers.\n`)
 llm.push(`## Key pages\n${[['/', 'Home'], ['/apps', 'Apps'], ['/games', 'Games'], ['/guide', 'Guides'], ['/blog', 'Blog'], ['/submit-mod', 'Submit an app']].map(([p, t]) => `- [${t}](${SITE_URL}${p === '/' ? '/' : p})`).join('\n')}\n`)

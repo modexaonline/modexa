@@ -3,6 +3,7 @@ import { Save, Plus, Trash2, Upload } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { defaultSettings, setSettingsCache } from '../lib/useSettings'
 import { SOCIAL_PRESETS, legacySocials } from '../lib/social'
+import { extractGaId } from '../components/Analytics'
 import SocialIcon from '../components/SocialIcon'
 import { ImageField, uploadImage } from './fields'
 import './admin-extra.css'
@@ -17,9 +18,12 @@ export default function AdminSite({ onNotice, onError }) {
   async function save(e) {
     e.preventDefault()
     const bad = soc.find(x => !x.url?.trim()); if (bad) return onError('Every social link needs a URL (or remove it).')
+    const gaRaw = String(f.ga_measurement_id || '').trim(), gaId = extractGaId(gaRaw)
+    if (gaRaw && !gaId) return onError('Invalid Google Analytics ID. It looks like G-XXXXXXXXXX.')
     setBusy(true)
     const { id, updated_at, ...payload } = f
     payload.social_links = soc.map(x => ({ platform: x.platform || 'website', label: x.label || SOCIAL_PRESETS.find(p => p.id === x.platform)?.label || 'Link', url: x.url.trim(), icon_url: x.icon_url || '' }))
+    payload.ga_measurement_id = gaId
     payload.download_wait_seconds = Math.max(0, Math.min(300, Number(payload.download_wait_seconds) || 0))
     const { error } = await supabase.from('site_settings').update(payload).eq('id', 1)
     setBusy(false)
@@ -49,6 +53,11 @@ export default function AdminSite({ onNotice, onError }) {
       <div className="adm-field" style={{ marginTop: 14 }}><span>When should ads load?</span>
         <label className="adm-check"><input type="radio" name="adsmode" checked={!!f.ads_require_consent} onChange={() => setF({ ...f, ads_require_consent: true })}/><span><b>After the visitor accepts cookies</b> <small style={{ display: 'block', color: '#6b7280', fontWeight: 400 }}>Required in the EU/UK. The cookie notice shows “Accept all / Essential only”.</small></span></label>
         <label className="adm-check" style={{ marginTop: 8 }}><input type="radio" name="adsmode" checked={!f.ads_require_consent} onChange={() => setF({ ...f, ads_require_consent: false })}/><span><b>Always, with or without cookie acceptance</b> <small style={{ display: 'block', color: '#6b7280', fontWeight: 400 }}>Ads load immediately for every visitor. The cookie notice becomes information only.</small></span></label></div></section>
+    <section className="adm-card"><h3>Google Analytics</h3>
+      <p className="adm-sub">Paste your GA4 Measurement ID (or the whole Google tag snippet, the ID is picked out automatically). It is added to every page. Leave empty to remove it.</p>
+      <div className="adm-grid2"><label className="adm-field"><span>Measurement ID</span><input value={f.ga_measurement_id || ''} onChange={set('ga_measurement_id')} placeholder="G-XXXXXXXXXX" spellCheck={false}/></label></div>
+      <label className="adm-check" style={{ marginTop: 14 }}><input type="checkbox" checked={f.ga_enabled !== false} onChange={set('ga_enabled')}/> Google Analytics enabled</label>
+      <label className="adm-check" style={{ marginTop: 8 }}><input type="checkbox" checked={!!f.ga_require_consent} onChange={set('ga_require_consent')}/><span>Load only after the visitor accepts cookies <small style={{ display: 'block', color: '#6b7280', fontWeight: 400 }}>Recommended for EU/UK visitors. Off = tracks every visitor.</small></span></label></section>
     <section className="adm-card"><h3>Download buttons</h3>
       <label className="adm-field" style={{ maxWidth: 320 }}><span>Countdown before redirect (seconds)</span><input type="number" min="0" max="300" value={f.download_wait_seconds} onChange={set('download_wait_seconds')}/><span className="adm-hint">Used by the listing “Download” button. Buttons you add in the editor have their own value (default 30). 0 = redirect immediately.</span></label></section>
     <div className="adm-actions"><button className="adm-btn primary" disabled={busy}><Save size={15}/> {busy ? 'Saving…' : 'Save settings'}</button></div>
