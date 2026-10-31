@@ -1,5 +1,0 @@
-# Modexa
-
-> Independent discovery hub for game mods, custom content and modding guides.
-
-See /sitemap.xml for all pages.
