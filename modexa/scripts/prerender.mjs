@@ -18,7 +18,7 @@ if (!SITE_URL || SITE_URL.includes('yourdomain')) { console.warn('⚠ SITE_URL i
 const SB = (env.VITE_SUPABASE_URL || PUBLIC_SUPABASE_URL || '').replace(/\/$/, ''), KEY = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || PUBLIC_SUPABASE_KEY || ''
 const live = SB && KEY && !SB.includes('YOUR_PROJECT_ID')
 const DIST = 'dist'
-const template = readFileSync(join(DIST, 'index.html'), 'utf8')
+let template = readFileSync(join(DIST, 'index.html'), 'utf8')
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const slugify = v => String(v || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -39,6 +39,8 @@ if (live) {
   try { settings = (await rest('site_settings', '*', '&id=eq.1'))[0] || {} } catch {}
   try { for (const r of await rest('site_content', 'key,data')) content[r.key] = r.data } catch (e) { console.warn('site_content:', e.message) }
 } else console.log('Supabase not configured: prerendering static pages only.')
+// Custom <head> code saved in Admin → Robots, Sitemap & Header code replaces the built-in block of index.html.
+if ((settings.head_code || '').trim()) template = template.replace(/<!--MODEXA_HEAD_START-->[\s\S]*?<!--MODEXA_HEAD_END-->/, () => `<!--MODEXA_HEAD_START-->\n${settings.head_code.trim()}\n<!--MODEXA_HEAD_END-->`)
 
 // ---------- html building blocks ----------
 const sectionsHtml = (sections = []) => sections.map(s => `<section id="${esc(s.id)}"><h2>${esc(s.h)}</h2>${(s.p || []).map(t => `<p>${inline(t)}</p>`).join('')}${s.ul ? `<ul>${s.ul.map(t => `<li>${inline(t)}</li>`).join('')}</ul>` : ''}${s.ol ? `<ol>${s.ol.map(t => `<li>${inline(t)}</li>`).join('')}</ol>` : ''}${s.table ? `<table><thead><tr>${s.table.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${s.table.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : ''}${s.note ? `<p>${inline(s.note)}</p>` : ''}</section>`).join('')

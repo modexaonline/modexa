@@ -4,7 +4,9 @@ import { supabase } from '../lib/supabase'
 import './admin-extra.css'
 
 const MAX = 500 * 1024
+const GA_DEFAULT = `<!-- Google tag (gtag.js) -->\n<script async src="https://www.googletagmanager.com/gtag/js?id=G-D6TLV9Y2L7"></script>\n<script>\n  window.dataLayer = window.dataLayer || [];\n  function gtag(){dataLayer.push(arguments);}\n  gtag('js', new Date());\n\n  gtag('config', 'G-D6TLV9Y2L7');\n</script>`
 const CFG = {
+  head_code: { title: 'Header code', url: '/', def: null, accept: '.html,.txt,text/html,text/plain', ph: GA_DEFAULT },
   robots_txt: { title: 'robots.txt', url: '/robots.txt', def: '/robots.default.txt', accept: '.txt,text/plain', ph: 'User-agent: *\nAllow: /\nDisallow: /admin\n\nSitemap: https://yourdomain.com/sitemap.xml' },
   sitemap_xml: { title: 'sitemap.xml', url: '/sitemap.xml', def: '/sitemap.default.xml', accept: '.xml,text/xml,application/xml', ph: '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>https://yourdomain.com/</loc></url>\n</urlset>' }
 }
@@ -13,6 +15,12 @@ function validate(col, text) {
   const t = text.trim()
   if (!t) return ''
   if (new Blob([text]).size > MAX) return 'File is too large (max 500 KB).'
+  if (col === 'head_code') {
+    if (new Blob([text]).size > 50000) return 'Header code is too long (max 50 KB).'
+    if (/<\/head>|<body[\s>]|<html[\s>]/i.test(t)) return 'Paste only the tags that belong inside <head> (no <html>, <body> or </head>).'
+    if (!/<(script|meta|link|style)[\s>]/i.test(t)) return 'This does not look like header code. Paste the full <script …> tag exactly as Google/Monetag shows it.'
+    return ''
+  }
   if (col === 'robots_txt') {
     if (/<\s*(html|body|script)/i.test(t)) return 'This looks like HTML, not a robots.txt file.'
     if (!/^\s*(user-agent|sitemap|#)/im.test(t)) return 'robots.txt should contain at least one "User-agent:" line.'
@@ -34,8 +42,14 @@ function Editor({ col, saved, onSaved, onNotice, onError }) {
     setBusy(true)
     const { error } = await supabase.from('site_settings').update({ [col]: value }).eq('id', 1)
     setBusy(false)
-    if (error) return onError(/column|schema/i.test(error.message) ? 'Database is missing the new columns. Run supabase/v11_seo_files.sql in Supabase first.' : error.message)
-    onSaved(value); onNotice(msg)
+    if (error) return onError(/column|schema/i.test(error.message) ? 'Database is missing the new columns. Run supabase/v12_seo_files_head.sql in Supabase first.' : error.message)
+    onSaved(value)
+    if (col !== 'head_code') return onNotice(msg)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const r = await fetch('/api/redeploy', { method: 'POST', headers: { Authorization: 'Bearer ' + (session?.access_token || '') } })
+      onNotice(r.ok ? 'Header code saved. The website is rebuilding now and the code will be in the public <head> in about 1–2 minutes.' : 'Header code saved, but the automatic rebuild is not set up yet. Add VERCEL_DEPLOY_HOOK_URL in Vercel (see README) or redeploy manually to publish it.')
+    } catch { onNotice('Header code saved. Redeploy the site to publish it.') }
   }
   function upload(e) {
     const f = e.target.files?.[0]; e.target.value = ''; if (!f) return
@@ -43,6 +57,7 @@ function Editor({ col, saved, onSaved, onNotice, onError }) {
     const r = new FileReader(); r.onload = () => { setText(String(r.result || '')); onNotice(`${f.name} loaded into the editor. Review it, then press Save.`) }; r.readAsText(f)
   }
   async function loadDefault() {
+    if (!c.def) { setText(GA_DEFAULT); return onNotice('Built-in Google tag loaded into the editor.') }
     try { const r = await fetch(c.def, { cache: 'no-store' }); if (!r.ok) throw 0; setText(await r.text()); onNotice('Auto-generated version loaded into the editor. Edit it, then press Save.') }
     catch { onError('The auto-generated file is only available on the deployed site after a build.') }
   }
@@ -52,7 +67,7 @@ function Editor({ col, saved, onSaved, onNotice, onError }) {
   return <section className="adm-card" style={{ display: 'grid', gap: 12 }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
       <div><h3 style={{ margin: 0, display: 'flex', gap: 8, alignItems: 'center' }}><FileCode size={18}/> {c.title}</h3>
-        <p className="adm-sub" style={{ margin: '4px 0 0' }}>{custom ? 'A custom file is live. It replaces the auto-generated one.' : 'Using the auto-generated file from the last build. Save text below to override it.'}</p></div>
+        <p className="adm-sub" style={{ margin: '4px 0 0' }}>{col === 'head_code' ? (custom ? 'Your custom code is added inside <head> of every public page.' : 'Using the built-in Google tag (G-D6TLV9Y2L7). Save code below to replace it.') : custom ? 'A custom file is live. It replaces the auto-generated one.' : 'Using the auto-generated file from the last build. Save text below to override it.'}</p></div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>{custom && <span className="adm-pill green"><CheckCircle2 size={13}/> Custom</span>}<a className="adm-btn sm" href={c.url} target="_blank" rel="noreferrer"><ExternalLink size={14}/> View live</a></div>
     </div>
     <textarea rows={14} spellCheck={false} value={text} onChange={e => setText(e.target.value)} placeholder={c.ph} style={{ fontFamily: 'ui-monospace,Menlo,Consolas,monospace', fontSize: 13, width: '100%' }}/>
@@ -68,11 +83,12 @@ function Editor({ col, saved, onSaved, onNotice, onError }) {
 }
 
 export default function AdminSeoFiles({ onNotice, onError }) {
-  const [v, setV] = useState({ robots_txt: '', sitemap_xml: '' }), [loaded, setLoaded] = useState(false)
-  useEffect(() => { supabase.from('site_settings').select('robots_txt,sitemap_xml').eq('id', 1).maybeSingle().then(({ data, error }) => { if (data) setV({ robots_txt: data.robots_txt || '', sitemap_xml: data.sitemap_xml || '' }); else if (error && !/column|schema/i.test(error.message)) onError(error.message); else if (error) onError('Run supabase/v11_seo_files.sql in Supabase first, then reload.'); setLoaded(true) }) }, [])
+  const [v, setV] = useState({ robots_txt: '', sitemap_xml: '', head_code: '' }), [loaded, setLoaded] = useState(false)
+  useEffect(() => { supabase.from('site_settings').select('robots_txt,sitemap_xml,head_code').eq('id', 1).maybeSingle().then(({ data, error }) => { if (data) setV({ robots_txt: data.robots_txt || '', sitemap_xml: data.sitemap_xml || '', head_code: data.head_code || '' }); else if (error && !/column|schema/i.test(error.message)) onError(error.message); else if (error) onError('Run supabase/v12_seo_files_head.sql in Supabase first, then reload.'); setLoaded(true) }) }, [])
   if (!loaded) return <div className="admin-empty"><p>Loading…</p></div>
   return <div className="adm">
-    <div className="adm-head"><div><h2>Robots.txt & Sitemap</h2><p>Edit, upload or delete the files search engines read. Changes go live without a redeploy.</p></div></div>
+    <div className="adm-head"><div><h2>Robots, Sitemap & Header code</h2><p>Edit, upload or delete these files. Robots and sitemap go live at once; header code rebuilds the site automatically.</p></div></div>
+    <Editor col="head_code" saved={v.head_code} onSaved={x => setV(p => ({ ...p, head_code: x }))} onNotice={onNotice} onError={onError}/>
     <Editor col="robots_txt" saved={v.robots_txt} onSaved={x => setV(p => ({ ...p, robots_txt: x }))} onNotice={onNotice} onError={onError}/>
     <Editor col="sitemap_xml" saved={v.sitemap_xml} onSaved={x => setV(p => ({ ...p, sitemap_xml: x }))} onNotice={onNotice} onError={onError}/>
     <div className="adm-alert info"><Info size={16} style={{ flex: 'none', marginTop: 2 }}/><div>Deleting a custom file switches back to the one generated automatically at every deploy. A custom sitemap does not update itself when you publish new posts, so delete it (or re-upload) to get the automatic one back. After changing the sitemap, resubmit it in Google Search Console.</div></div>

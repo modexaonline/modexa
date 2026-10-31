@@ -70,3 +70,8 @@ Supabase URL and **publishable** key, so the admin login works even if you set n
 To override from Vercel instead: Project > Settings > Environment Variables, add
 `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `SITE_URL` (your real domain), then redeploy.
 Variables set there take priority over `publicConfig.js`.
+
+## Header code, robots.txt and sitemap (v12)
+Run `supabase/v12_seo_files_head.sql` once. Admin → "Header, Robots & Sitemap" edits the Google tag / any `<head>` code,
+robots.txt and sitemap.xml. Header code is baked into the public HTML at build time; to rebuild automatically after Save,
+create a Vercel Deploy Hook (Project → Settings → Git → Deploy Hooks) and add its URL as env var `VERCEL_DEPLOY_HOOK_URL`.
