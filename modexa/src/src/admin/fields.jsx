@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { Upload, Image as ImageIcon, ArrowUp, ArrowDown, Trash2, Plus } from 'lucide-react'
+import { Upload, Image as ImageIcon, ArrowUp, ArrowDown, Trash2, Plus, Wand2 } from 'lucide-react'
+import { parseFaqs, cleanList } from '../lib/formatText'
 import { supabase } from '../lib/supabase'
 import './admin-extra.css'
 
@@ -54,16 +55,59 @@ export const paras = t => String(t || '').split(/\n\s*\n/).map(x => x.trim()).fi
 
 // FAQ list editor: add / remove / reorder question + answer pairs. Used by app, game, blog and guide editors.
 export const cleanFaqs = list => (Array.isArray(list) ? list : []).map(f => ({ q: String(f?.q || '').trim(), a: String(f?.a || '').trim() })).filter(f => f.q && f.a)
+// Merge parsed FAQs into the list (skips questions that already exist, drops empty placeholder rows).
+const mergeFaqs = (list, found) => { const have = new Set(list.filter(f => f.q?.trim()).map(f => f.q.trim().toLowerCase())); const add = found.filter(f => !have.has(f.q.toLowerCase())); return { next: [...list.filter(f => (f.q || '').trim() || (f.a || '').trim()), ...add], added: add.length, skipped: found.length - add.length } }
 export function FaqEditor({ items, onChange }) {
   const list = Array.isArray(items) ? items : []
+  const [bulk, setBulk] = useState(''), [msg, setMsg] = useState('')
   const upd = (i, p) => onChange(list.map((x, k) => k === i ? { ...x, ...p } : x))
+  function addBulk(text) {
+    const found = parseFaqs(text)
+    if (!found.length) { setMsg('Could not find any question + answer pairs. Put each question on its own line (ending with ?) and the answer under it.'); return false }
+    const r = mergeFaqs(list, found); onChange(r.next); setBulk('')
+    setMsg(`Added ${r.added} FAQ${r.added === 1 ? '' : 's'}${r.skipped ? `, skipped ${r.skipped} that already existed` : ''}. Check them below.`); return true
+  }
+  // Pasting a whole FAQ block into any Question box splits it automatically.
+  function onQPaste(e, i) {
+    const t = e.clipboardData?.getData('text') || ''
+    if (!/\n|\?\s+\S/.test(t.trim())) return
+    const found = parseFaqs(t); if (!found.length || (found.length === 1 && !/\n/.test(t.trim()))) return
+    e.preventDefault()
+    const blank = i < list.length && !(list[i].q || '').trim() && !(list[i].a || '').trim()
+    const r = mergeFaqs(blank ? list.filter((_, k) => k !== i) : list, found)
+    onChange(r.next); setMsg(`Pasted text was split into ${r.added} FAQ${r.added === 1 ? '' : 's'}.`)
+  }
   return <div className="adm-repeat">
-    {list.length === 0 && <p className="adm-hint">No FAQs yet. Click “Add FAQ” to add a question and answer.</p>}
+    <div className="adm-item" style={{ borderStyle: 'dashed' }}>
+      <label className="adm-field"><span>Paste all FAQs here (auto-split)</span>
+        <textarea rows={5} value={bulk} onChange={e => { setBulk(e.target.value); setMsg('') }} onPaste={e => { const t = e.clipboardData?.getData('text') || ''; if (t.trim().length > 20 && addBulk(t)) e.preventDefault() }} placeholder={'Is this app free?\nYes, it is free to download.\n\nIs it safe?\nYes, every file is scanned.\n\n(Q: / A:, 1. / 2. numbering and “Question? Answer” on one line also work)'}/></label>
+      <div className="adm-actions" style={{ marginTop: 8 }}><button type="button" className="adm-btn" disabled={!bulk.trim()} onClick={() => addBulk(bulk)}><Wand2 size={15}/> Split into separate FAQs</button>{msg && <span className="adm-hint" role="status">{msg}</span>}</div>
+    </div>
+    {list.length === 0 && <p className="adm-hint">No FAQs yet. Paste them above, or click “Add FAQ” to type one.</p>}
     {list.map((f, i) => <div className="adm-item" key={i}>
       <div className="adm-item-head"><b>FAQ #{i + 1}</b><Move i={i} n={list.length} label="FAQ" onMove={(x, d) => onChange(moveItem(list, x, d))} onRemove={x => onChange(list.filter((_, k) => k !== x))}/></div>
-      <label className="adm-field"><span>Question</span><input value={f.q || ''} maxLength={200} onChange={e => upd(i, { q: e.target.value })} placeholder="e.g. Is this app free to download?"/></label>
+      <label className="adm-field"><span>Question</span><input value={f.q || ''} maxLength={200} onChange={e => upd(i, { q: e.target.value })} onPaste={e => onQPaste(e, i)} placeholder="e.g. Is this app free to download?"/></label>
       <label className="adm-field"><span>Answer</span><textarea rows={3} value={f.a || ''} onChange={e => upd(i, { a: e.target.value })} placeholder="Write the answer. You can use **bold** and [links](/page)."/></label>
     </div>)}
     <button type="button" className="adm-btn" onClick={() => onChange([...list, { q: '', a: '' }])}><Plus size={15}/> Add FAQ</button>
   </div>
+}
+
+// One-item-per-line list box (features, requirements, install steps). Pasting auto-cleans: bullets, numbers,
+// "Step 1:", ticks, duplicates and "a; b; c" / "a, b, c" one-liners all become tidy separate lines.
+export function ListBox({ label, value, onChange, rows = 5, placeholder }) {
+  const ref = useRef(null)
+  const text = Array.isArray(value) ? value.join('\n') : (value || '')
+  function onPaste(e) {
+    const t = e.clipboardData?.getData('text') || ''; if (!t.trim()) return
+    e.preventDefault()
+    const el = ref.current, a = el.selectionStart, b = el.selectionEnd, add = cleanList(t).join('\n')
+    const before = text.slice(0, a), after = text.slice(b)
+    onChange([before.trimEnd(), add, after.trimStart()].filter(Boolean).join('\n'))
+  }
+  const tidy = () => onChange(cleanList(text).join('\n'))
+  const n = cleanList(text).length
+  return <div className="adm-field"><span>{label} (one per line)</span>
+    <textarea ref={ref} rows={rows} value={text} onChange={e => onChange(e.target.value)} onPaste={onPaste} onBlur={tidy} placeholder={placeholder || 'Paste a list or type one item per line'}/>
+    <span className="adm-hint">{n} item{n === 1 ? '' : 's'} · auto-cleans when you paste or click away</span></div>
 }

@@ -103,3 +103,65 @@ export function mdToHtml(md = '') {
   fp(); fl(); return out.join('\n')
 }
 export const isHtml = s => /^\s*<(?:[a-z][a-z0-9-]*|!--)/i.test(String(s || ''))
+
+// ───────── Bulk helpers for the admin: paste a whole block, get clean items. Words are never changed. ─────────
+const BULLET = /^\s*(?:[-*•–—▪●◦►➤➜→✅✔✓☑️✔️]+|\[[ xX]?\]|\d{1,3}\s*[.):\-–]|(?:step|point)\s*\d{1,3}\s*[:.)\-–]?)\s+/i
+const stripMd = s => String(s).replace(/\*\*|__/g, '').replace(/^#{1,6}\s*/, '').replace(/`/g, '').trim()
+
+// Features / requirements / install steps. Accepts one-per-line, bulleted, numbered, "a; b; c" or "a, b, c".
+export function cleanList(input) {
+  let src = Array.isArray(input) ? input.join('\n') : String(input ?? '')
+  src = src.replace(/\r\n?/g, '\n').replace(ZW, '').replace(/\u00a0/g, ' ')
+  let rows = src.split('\n').map(l => l.trim()).filter(Boolean)
+  if (rows.length === 1) {                                   // everything pasted on one line
+    const one = rows[0]
+    if (/\s\d{1,2}[.)]\s+\S/.test(' ' + one) && (one.match(/(?:^|\s)\d{1,2}[.)]\s/g) || []).length >= 2) rows = one.split(/\s+(?=\d{1,2}[.)]\s)/)
+    else if (/[;•|]/.test(one)) rows = one.split(/\s*[;•|]\s*/)
+    else if ((one.match(/,/g) || []).length >= 2 && one.split(',').every(p => p.trim().length <= 70)) rows = one.split(',')
+  }
+  const seen = new Set(), out = []
+  for (let r of rows) {
+    r = stripMd(r).replace(BULLET, '').replace(/^[\s\u2022\-–]+/, '').replace(/\s+/g, ' ').replace(/[;,]+$/, '').trim()
+    if (!r) continue
+    if (/:$/.test(r) && r.split(' ').length <= 4) continue  // lone label such as "Features:"
+    const k = r.toLowerCase(); if (seen.has(k)) continue
+    seen.add(k); out.push(r)
+  }
+  return out
+}
+
+// FAQs. Understands "Q: … A: …", "1. Question? answer", "Question?" on one line + answer lines below,
+// "Question? Answer" on one line, and blank-line separated blocks. Returns [{q, a}].
+export function parseFaqs(input) {
+  const text = String(input ?? '').replace(/\r\n?/g, '\n').replace(ZW, '').replace(/\u00a0/g, ' ').replace(/^\s*[-_=*~]{3,}\s*$/gm, '')
+  const QP = /^\s*(?:(?:q(?:uestion)?)\s*\d{0,3}\s*[:.)\-–]\s*|\d{1,3}\s*[.):\-–]\s+|[-*•–▪●➤►]\s+|#{1,6}\s+)/i
+  const AP = /^\s*(?:a(?:ns(?:wer)?)?)\s*\d{0,3}\s*[:.)\-–]\s*/i
+  const hasExplicitQ = /^\s*q(?:uestion)?\s*\d{0,3}\s*[:.)\-–]/im.test(text)
+  const lines = text.split('\n').map(l => l.trim())
+  const items = []; let cur = null
+  const push = () => { if (cur) { const q = stripMd(cur.q).replace(/\s+/g, ' ').trim(), a = stripMd(cur.a.join(' ')).replace(/\s+/g, ' ').trim(); if (q && a) items.push({ q, a }) } cur = null }
+  const isQ = l => { const t = stripMd(l.replace(QP, '')); return /\?["”’)]*$/.test(t) || (hasExplicitQ && /^\s*q(?:uestion)?\s*\d{0,3}\s*[:.)\-–]/i.test(l)) }
+  for (const l of lines) {
+    if (!l) { if (cur && cur.a.length) cur.gap = true; continue }
+    if (AP.test(l) && cur) { cur.a.push(l.replace(AP, '')); continue }
+    if (isQ(l)) { push(); cur = { q: l.replace(QP, ''), a: [] }; continue }
+    // "Question? Answer on same line"
+    const m = l.replace(QP, '').match(/^(.{6,200}?\?)["”’)]*\s+([A-Z0-9“"(].+)$/)
+    if (m && (QP.test(l) || QWORD.test(m[1])) && (!cur || cur.gap || !cur.a.length)) { push(); cur = { q: m[1], a: [m[2]] }; continue }
+    if (cur) cur.a.push(l)
+    else cur = { q: l.replace(QP, ''), a: [] }               // first line without "?" = question
+  }
+  push()
+  if (!items.length) {                                       // fallback: blocks split by blank lines, first line = question
+    for (const b of text.split(/\n\s*\n/)) { const ls = b.split('\n').map(x => x.trim()).filter(Boolean); if (ls.length >= 2) items.push({ q: stripMd(ls[0].replace(QP, '')), a: stripMd(ls.slice(1).join(' ').replace(AP, '')) }) }
+  }
+  // everything on one line: "Q? A. Q2? A2." -> split inside the answer wherever a new question sentence starts
+  const split = []
+  for (const f of items) {
+    let c = { q: f.q, a: [] }
+    for (const sn of splitSentences(f.a)) { if (isQuestionHeading(sn)) { if (c.a.length) split.push({ q: c.q, a: c.a.join(' ') }); c = { q: sn, a: [] } } else c.a.push(sn) }
+    if (c.a.length) split.push({ q: c.q, a: c.a.join(' ') })
+  }
+  const seen = new Set()
+  return split.filter(f => { const k = f.q.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true })
+}
