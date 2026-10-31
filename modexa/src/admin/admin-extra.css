@@ -117,3 +117,6 @@
 .pb-gallery button{display:grid;gap:4px;text-align:left;padding:14px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;cursor:pointer;font-family:inherit;transition:.15s}.pb-gallery button:hover{border-color:#16a34a;background:#f0fdf4}.pb-gallery b{font-size:14px;color:#0a0a0a}.pb-gallery small{color:#4b5563;font-size:12.5px;line-height:1.4}
 .pb-grip{cursor:grab;color:#9ca3af;display:grid;place-items:center;padding:4px;flex:none}.pb-grip:active{cursor:grabbing}.pb-card.dragging{opacity:.45}
 .pb-style{margin-top:16px;border-top:1px dashed #d1d5db;padding-top:12px}.pb-style summary{cursor:pointer;font-weight:700;color:#374151;margin-bottom:12px}
+.adm-btn.adm-sitemap-btn{white-space:nowrap}
+.adm-btn.adm-sitemap-btn.on{background:#f0fdf4;border-color:#86efac;color:#166534}
+.adm-btn.adm-sitemap-btn.on:hover{background:#fef3f2;border-color:#fecdca;color:#b42318}

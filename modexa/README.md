@@ -75,3 +75,8 @@ Variables set there take priority over `publicConfig.js`.
 Run `supabase/v12_seo_files_head.sql` once. Admin → "Header, Robots & Sitemap" edits the Google tag / any `<head>` code,
 robots.txt and sitemap.xml. Header code is baked into the public HTML at build time; to rebuild automatically after Save,
 create a Vercel Deploy Hook (Project → Settings → Git → Deploy Hooks) and add its URL as env var `VERCEL_DEPLOY_HOOK_URL`.
+
+## v16 additions
+- **Dark / light mode**: moon/sun button in the header. The choice is saved in the visitor's browser (default: light). Styles: `src/dark.generated.css` (auto-mapped from the light CSS) + `src/dark.css` (manual tweaks). The admin panel is always light.
+- **Add to sitemap**: Admin → Posts / App listings / Game listings now have an "Add to sitemap" button on every row. One click adds that page's URL to the live sitemap.xml (click again to remove). The first click copies the auto-generated sitemap into the custom sitemap, then adds the URL. Drafts and noindex pages cannot be added. Needs `supabase/v12_seo_files_head.sql` to have been run once.
+- **Submit page**: black input boxes and the black "submission received" box fixed.

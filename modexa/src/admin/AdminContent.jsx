@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Pencil, Copy, Trash2, Eye, EyeOff, ExternalLink, X, Search } from 'lucide-react'
+import { Plus, Pencil, Copy, Trash2, Eye, EyeOff, ExternalLink, X, Search, FilePlus2, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { refreshMods } from '../lib/useMods'
 import { refreshPosts } from '../lib/usePosts'
 import { useSettings } from '../lib/useSettings'
+import { getSitemapState, setInSitemap, normPath } from '../lib/sitemapAdmin'
 import RichEditor from './RichEditor'
 import { ImageField, Counter, slugify, lines, FaqEditor, cleanFaqs } from './fields'
 import './admin-extra.css'
@@ -30,6 +31,7 @@ export default function AdminContent({ kind, onNotice, onError }) {
   const cfg = CFG[kind], settings = useSettings()
   const [rows, setRows] = useState([]), [loading, setLoading] = useState(true), [editing, setEditing] = useState(null), [busy, setBusy] = useState(false)
   const [q, setQ] = useState(''), [fs, setFs] = useState('all'), [ads, setAds] = useState([]), [gameList, setGameList] = useState([])
+  const [sm, setSm] = useState({ paths: new Set(), ready: false }), [smBusy, setSmBusy] = useState('')
   async function load() {
     setLoading(true)
     let qb = supabase.from(cfg.table).select('*').order('created_at', { ascending: false }).limit(500)
@@ -39,7 +41,16 @@ export default function AdminContent({ kind, onNotice, onError }) {
     if (r.error) { onError(r.error.message); return }
     setRows(r.data || []); setAds(a.data || []); setGameList(g.data || [])
   }
-  useEffect(() => { setEditing(null); setQ(''); setFs('all'); load() }, [kind])
+  useEffect(() => { setEditing(null); setQ(''); setFs('all'); load(); getSitemapState().then(x => setSm({ paths: x.paths, ready: true })).catch(() => setSm({ paths: new Set(), ready: false })) }, [kind])
+  async function toggleSitemap(r) {
+    const path = normPath(cfg.href(r)), listed = sm.paths.has(path)
+    if (!listed && r.status !== 'published') return onError('Publish this ' + cfg.one + ' first, drafts cannot go in the sitemap.')
+    if (!listed && r.noindex) return onError('This page is set to noindex, so it is not added to the sitemap. Turn noindex off in its SEO settings first.')
+    setSmBusy(r.id)
+    try { const res = await setInSitemap(path, !listed); setSm({ paths: res.paths, ready: true }); onNotice(listed ? `Removed ${path} from the sitemap.` : `Added ${res.url} to the sitemap. It is live now (CDN may take up to 5 minutes). Resubmit sitemap.xml in Google Search Console if needed.`) }
+    catch (er) { onError(er.message || 'Could not update the sitemap.') }
+    setSmBusy('')
+  }
   const set = p => setEditing(e => ({ ...e, ...p }))
   const refresh = () => { cfg.table === 'posts' ? refreshPosts() : refreshMods() }
 
@@ -121,7 +132,7 @@ export default function AdminContent({ kind, onNotice, onError }) {
           {kind === 'posts' && <td><span className={`adm-pill ${r.post_type === 'guide' ? 'dark' : ''}`}>{r.post_type === 'guide' ? 'Guide' : 'Blog'}</span></td>}
           <td><span className={`adm-pill ${r.status === 'published' ? 'green' : 'amber'}`}>{r.status === 'published' ? 'Published' : 'Draft'}</span></td>
           <td style={{ color: '#6b7280' }}>{(r.published_at || r.created_at || '').slice(0, 10)}</td>
-          <td><div className="adm-actions"><button className="adm-btn sm primary" onClick={() => setEditing({ ...blank(kind), ...r })}><Pencil size={14}/> Edit</button><button className="adm-btn sm" onClick={() => toggle(r)} title={r.status === 'published' ? 'Unpublish' : 'Publish'}>{r.status === 'published' ? <EyeOff size={14}/> : <Eye size={14}/>}</button><a className="adm-btn sm" href={cfg.href(r)} target="_blank" rel="noopener noreferrer" title="View"><ExternalLink size={14}/></a><button className="adm-btn sm" onClick={() => duplicate(r)} title="Duplicate"><Copy size={14}/></button><button className="adm-btn sm danger" onClick={() => remove(r)} title="Delete"><Trash2 size={14}/></button></div></td>
+          <td><div className="adm-actions"><button className="adm-btn sm primary" onClick={() => setEditing({ ...blank(kind), ...r })}><Pencil size={14}/> Edit</button><button className="adm-btn sm" onClick={() => toggle(r)} title={r.status === 'published' ? 'Unpublish' : 'Publish'}>{r.status === 'published' ? <EyeOff size={14}/> : <Eye size={14}/>}</button><button className={`adm-btn sm adm-sitemap-btn ${sm.paths.has(normPath(cfg.href(r))) ? 'on' : ''}`} disabled={smBusy === r.id} onClick={() => toggleSitemap(r)} title={sm.paths.has(normPath(cfg.href(r))) ? 'This URL is in sitemap.xml. Click to remove it.' : r.status === 'published' ? 'Add this URL to sitemap.xml' : 'Publish first, then add to sitemap'}>{sm.paths.has(normPath(cfg.href(r))) ? <><CheckCircle2 size={14}/> In sitemap</> : <><FilePlus2 size={14}/> {smBusy === r.id ? 'Adding…' : 'Add to sitemap'}</>}</button><a className="adm-btn sm" href={cfg.href(r)} target="_blank" rel="noopener noreferrer" title="View"><ExternalLink size={14}/></a><button className="adm-btn sm" onClick={() => duplicate(r)} title="Duplicate"><Copy size={14}/></button><button className="adm-btn sm danger" onClick={() => remove(r)} title="Delete"><Trash2 size={14}/></button></div></td>
         </tr>)}</tbody></table></div>}
     </section>
   </div>

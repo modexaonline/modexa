@@ -418,3 +418,24 @@ body:has(.ann-bottom){padding-bottom:52px}
 .pb-layout-wide .container{max-width:1400px}.pb-layout-full .container{max-width:none}
 @media(max-width:760px){.pb-split{grid-template-columns:1fr}.pb-split.is-right .pb-split-img{order:0}.pb-features{grid-template-columns:minmax(0,1fr)!important}.pb-gallery{grid-template-columns:repeat(2,minmax(0,1fr))!important}.pb-hide-mobile{display:none!important}}
 @media(min-width:761px){.pb-hide-desktop{display:none!important}}
+
+/* ---------- Submit page + form fixes (v16) ---------- */
+.submit-form input:not([type=checkbox]),.submit-form select,.submit-form textarea{background:var(--surface)!important;color:var(--ink)!important;border:1px solid var(--line-2)!important;box-shadow:none}
+.submit-form input::placeholder,.submit-form textarea::placeholder{color:var(--ink-3);opacity:1}
+.submit-form .req-label{font-weight:600;color:var(--ink-2)}
+.submit-form .req-label span{color:var(--green-700)}
+.form-section-title{border-bottom:1px solid var(--line)!important}
+.form-section-title p,.form-privacy,.submit-form label small{color:var(--ink-3)!important}
+.submission-success{background:var(--green-50)!important;border:1px solid var(--green-200)!important}
+.submission-success h2{color:var(--ink)}
+.submission-success p{color:var(--ink-2)!important}
+.aside-muted{background:var(--surface-2)!important}
+.form-error{color:#b42318!important}
+.filter-panel select,.filter-panel input,.sort-control select{background:var(--surface)!important;color:var(--ink)!important;border:1px solid var(--line-2)!important}
+.sort-control select{border:0!important;background:transparent!important}
+.sort-control option,.filter-panel option,.submit-form option{background:var(--surface);color:var(--ink)}
+
+/* ---------- Theme toggle button (light + dark) ---------- */
+.theme-toggle{display:inline-grid;place-items:center;height:40px;width:40px;flex:none;border-radius:12px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);cursor:pointer;transition:border-color .15s,background .15s,transform .15s}
+.theme-toggle:hover{border-color:var(--green-600)}.theme-toggle:active{transform:scale(.95)}
+.submit-form select,.submit-form input,.submit-form textarea{font-family:inherit;font-weight:500}

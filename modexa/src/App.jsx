@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
 import { PageSkeleton } from './components/Skeleton'
+import { applyTheme, getTheme } from './lib/theme'
 const ListingPage = lazy(() => import('./pages/ListingPage'))
 const DetailPage = lazy(() => import('./pages/DetailPage'))
 const LegacyModRedirect = lazy(() => import('./pages/DetailPage').then(m => ({ default: m.LegacyModRedirect })))
@@ -23,6 +24,7 @@ export default function App() {
   })
   const location = useLocation()
   useEffect(() => { try { localStorage.setItem('modexa-saved', JSON.stringify(savedIds)) } catch {} }, [savedIds])
+  useEffect(() => { applyTheme(location.pathname.startsWith('/admin') ? 'light' : getTheme()) }, [location.pathname])
   useEffect(() => { if (!location.hash) window.scrollTo({ top: 0, behavior: 'instant' }) }, [location.pathname])
   if (location.pathname.startsWith('/admin')) return <ErrorBoundary fullscreen><Suspense fallback={<div className="admin-center">Loading admin…</div>}><Admin /></Suspense></ErrorBoundary>
   const onToggleSave = id => setSavedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])

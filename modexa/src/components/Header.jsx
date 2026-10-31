@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Menu, X, Bookmark } from 'lucide-react'
 import SearchBox from './SearchBox'
 import Logo from './Logo'
+import ThemeToggle from './ThemeToggle'
 import usePublicPages from '../lib/usePublicPages'
 import { usePageContent } from '../lib/siteContent'
 import { NAV_DEFAULT } from '../content/merge'
@@ -41,6 +42,7 @@ export default function Header({ savedCount = 0 }) {
         </nav>
         <div className="header-actions">
           <SearchBox variant="header" className="header-searchbox"/>
+          <ThemeToggle/>
           <Link className="saved-link" to="/saved" aria-label={`Saved mods, ${savedCount} saved`}><Bookmark size={18}/><span className="saved-count">{savedCount}</span></Link>
           <Link className="button button-small button-primary submit-header" to="/submit-mod">Submit an App <span>↗</span></Link>
           <button className="icon-button mobile-menu-button" onClick={() => setMobileOpen(v => !v)} aria-label={mobileOpen ? 'Close menu' : 'Open menu'} aria-expanded={mobileOpen}>{mobileOpen ? <X/> : <Menu/>}</button>

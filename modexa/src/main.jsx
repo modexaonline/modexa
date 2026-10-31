@@ -13,6 +13,8 @@ import './styles.css'
 import './polish.css'
 import './theme.css'
 import './content.css'
+import './dark.generated.css'
+import './dark.css'
 import { reloadOnce } from './components/ErrorBoundary'
 
 // After a new deploy, an old cached page may request JS files that no longer exist. Reload once to get the new version.
