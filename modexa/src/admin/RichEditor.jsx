@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bold, Italic, Underline, List, ListOrdered, Quote, AlignLeft, AlignCenter, AlignRight, AlignJustify, Link2, Image as ImageIcon, MousePointerClick, Megaphone, Code2, Undo2, Redo2, RemoveFormatting, Wand2, Search, X, Upload, Type } from 'lucide-react'
+import { Bold, Italic, Underline, List, ListOrdered, Quote, AlignLeft, AlignCenter, AlignRight, AlignJustify, Link2, Image as ImageIcon, MousePointerClick, Megaphone, Code2, Undo2, Redo2, RemoveFormatting, Wand2, Sparkles, Search, X, Upload, Type } from 'lucide-react'
 import { toHtml, wrapEmbeds, embedHtml, guessSize, decodeCode } from '../lib/contentHtml'
 import { autoFormatText, escapeHtml, wordCount } from '../lib/formatText'
 import { cleanPastedHtml } from '../lib/cleanPaste'
+import { aiFormatText } from '../lib/aiFormat'
 import { BUTTON_TEMPLATES, buttonHtml, previewHtml } from '../lib/buttonTemplates'
 import { uploadImage } from './fields'
 import '../content.css'
@@ -19,7 +20,7 @@ const prettyHtml = h => h.replace(/(<\/(?:p|h2|h3|ul|ol|li|blockquote|table|div|
 
 export default function RichEditor({ value, onChange, ads = [], onError, onNotice, label = 'Content', waitDefault = 30, minHeight = 380 }) {
   const ref = useRef(null), taRef = useRef(null), sel = useRef(null), last = useRef(null), file = useRef(null)
-  const [mode, setMode] = useState('compose'), [htmlText, setHtmlText] = useState(''), [dlg, setDlg] = useState(null), [auto, setAuto] = useState(true), [words, setWords] = useState(0)
+  const [mode, setMode] = useState('compose'), [htmlText, setHtmlText] = useState(''), [dlg, setDlg] = useState(null), [auto, setAuto] = useState(true), [aiOn, setAiOn] = useState(true), [aiBusy, setAiBusy] = useState(false), [words, setWords] = useState(0)
   const [find, setFind] = useState(''), [repl, setRepl] = useState(''), [mc, setMc] = useState(false), [fr, setFr] = useState(false)
   const adsKey = ads.map(a => a.slot_key + a.name).join('|')
 
@@ -51,7 +52,29 @@ export default function RichEditor({ value, onChange, ads = [], onError, onNotic
     if (!auto) out = text.split(/\n{2,}/).map(t => `<p>${escapeHtml(t.trim()).replace(/\n/g, '<br>')}</p>`).join('')
     else if (html && /<(h[1-6]|p|ul|ol|li|table|img|strong|b|em|a)\b/i.test(html)) out = cleanPastedHtml(html, text)
     else out = autoFormatText(text)
+    if (auto && aiOn && text.trim().length >= 120 && !(html && /<h[1-6]\b/i.test(html))) {
+      // Gemini adds headings / bullets / paragraphs (same words). Falls back to the built-in formatter on any problem.
+      saveSel(); setAiBusy(true)
+      aiFormatText(text).then(h => { insertHtml(h); onNotice?.('AI formatted your text, no words were changed.') })
+        .catch(er => { insertHtml(out); onError?.(`AI format skipped: ${er.message} (normal formatting used)`) })
+        .finally(() => setAiBusy(false))
+      return
+    }
     insertHtml(out)
+  }
+  async function aiFormatAll() {
+    if (aiBusy) return
+    const s = selectedText().trim()
+    if (s.length > 20) { saveSel(); setAiBusy(true); try { insertHtml(await aiFormatText(s)); onNotice?.('Selection formatted by AI, no words were changed.') } catch (er) { onError?.(er.message) } setAiBusy(false); return }
+    const el = ref.current; if (!el) return
+    const blocks = [...el.children].filter(c => /^(P|DIV)$/.test(c.tagName) && !c.classList.contains('mx-ad') && !c.classList.contains('mx-embed') && !c.querySelector('img,a.mx-btn,a.mx-btn-img') && (c.textContent || '').trim().length > 200)
+    if (!blocks.length) { onNotice?.('Nothing to format. Paste text, or select the part you want AI to structure.'); return }
+    setAiBusy(true); let n = 0
+    try {
+      for (const c of blocks.slice(0, 12)) { const h = await aiFormatText(c.innerText || c.textContent); const t = document.createElement('template'); t.innerHTML = h; c.replaceWith(t.content); n++ }
+      onNotice?.(`AI formatted ${n} block${n > 1 ? 's' : ''}, no words were changed.`)
+    } catch (er) { onError?.(er.message) }
+    emit(); setAiBusy(false)
   }
   function autoFormatAll() {
     const s = selectedText().trim()
@@ -101,8 +124,8 @@ export default function RichEditor({ value, onChange, ads = [], onError, onNotic
         <Btn title="Bullet list" onClick={() => exec('insertUnorderedList')}><List size={15}/></Btn><Btn title="Numbered list" onClick={() => exec('insertOrderedList')}><ListOrdered size={15}/></Btn><Btn title="Quote" onClick={() => exec('formatBlock', 'blockquote')}><Quote size={15}/></Btn><span className="sep"/>
         <Btn title="Link" onClick={() => openDlg('link')}><Link2 size={15}/> Link</Btn><Btn title="Image" onClick={() => openDlg('image')}><ImageIcon size={15}/> Image</Btn><Btn title="Button" onClick={() => openDlg('button')}><MousePointerClick size={15}/> Button</Btn><Btn title="Custom code / embed" onClick={() => openDlg('code')}><Code2 size={15}/> Code</Btn>
         <select aria-label="Insert ad" value="" onMouseDown={saveSel} onChange={e => { insertAd(e.target.value); e.target.value = '' }}><option value="">＋ Ad…</option>{ads.length === 0 ? <option disabled>No ads yet</option> : ads.map(a => <option key={a.slot_key} value={a.slot_key}>{a.name} · {a.kind === 'direct_link' ? 'direct link' : a.size}</option>)}</select><span className="sep"/>
-        <Btn title="Clear formatting" onClick={() => exec('removeFormat')}><RemoveFormatting size={15}/></Btn><Btn title="Auto-format text into headings & paragraphs (no words change)" onClick={autoFormatAll}><Wand2 size={15}/> Auto-format</Btn>
-        <label className="adm-ed-auto" title="When ON, anything you paste is cleaned and formatted automatically"><input type="checkbox" checked={auto} onChange={e => setAuto(e.target.checked)}/> Clean on paste</label>
+        <Btn title="Clear formatting" onClick={() => exec('removeFormat')}><RemoveFormatting size={15}/></Btn><Btn title="Auto-format text into headings & paragraphs (no words change)" onClick={autoFormatAll}><Wand2 size={15}/> Auto-format</Btn><Btn title="AI format: headings, sub-headings, bullets and paragraphs with Gemini (selected text, or the whole post). No words change." onClick={aiFormatAll}><Sparkles size={15}/> {aiBusy ? 'AI working…' : 'AI format'}</Btn>
+        <label className="adm-ed-auto" title="When ON, anything you paste is cleaned and formatted automatically"><input type="checkbox" checked={auto} onChange={e => setAuto(e.target.checked)}/> Clean on paste</label><label className="adm-ed-auto" title="When ON, pasted text is structured by Gemini AI (needs Clean on paste)"><input type="checkbox" checked={aiOn} onChange={e => setAiOn(e.target.checked)}/> AI on paste</label>
       </div>
       <div ref={ref} className="mx-compose adm-compose" contentEditable suppressContentEditableWarning spellCheck onInput={emit} onBlur={() => { saveSel(); emit() }} onKeyUp={saveSel} onMouseUp={saveSel} onPaste={onPaste} style={{ minHeight }}/>
     </> : <>
@@ -110,7 +133,7 @@ export default function RichEditor({ value, onChange, ads = [], onError, onNotic
       {fr && <div className="adm-pop"><div className="row" style={{ gridTemplateColumns: '1fr 1fr auto' }}><label className="adm-field"><span>Find</span><input value={find} onChange={e => setFind(e.target.value)} onKeyDown={e => e.key === 'Enter' && findNext()}/></label><label className="adm-field"><span>Replace with</span><input value={repl} onChange={e => setRepl(e.target.value)}/></label><div className="adm-actions"><button type="button" className="adm-btn sm" onClick={findNext}>Find next</button><button type="button" className="adm-btn sm" onClick={replaceOne}>Replace</button><button type="button" className="adm-btn sm primary" onClick={replaceAll}>Replace all</button></div></div><label className="adm-check"><input type="checkbox" checked={mc} onChange={e => setMc(e.target.checked)}/> Match case · <b>{matches}</b> match{matches === 1 ? '' : 'es'}</label></div>}
       <textarea ref={taRef} className="adm-htmlview" spellCheck={false} value={htmlText} onChange={e => onHtmlChange(e.target.value)} style={{ minHeight }}/>
     </>}
-    <div className="adm-ed-foot"><span>{words.toLocaleString()} words</span><span>{mode === 'compose' ? 'Compose view, what you see is what visitors see' : 'HTML view, switch to Compose to preview'}</span></div>
+    <div className="adm-ed-foot"><span>{words.toLocaleString()} words{aiBusy ? ' · AI is formatting…' : ''}</span><span>{mode === 'compose' ? 'Compose view, what you see is what visitors see' : 'HTML view, switch to Compose to preview'}</span></div>
     {dlg && <div className="adm-modal" role="dialog" aria-modal="true"><div className="adm-modal-card">
       <div className="adm-modal-head"><b>{dlg.type === 'link' ? 'Insert link' : dlg.type === 'image' ? 'Insert image' : dlg.type === 'button' ? 'Insert button' : 'Insert custom code'}</b><button type="button" className="adm-btn sm" onClick={() => setDlg(null)} aria-label="Close"><X size={15}/></button></div>
       {dlg.type === 'link' && <div className="adm"><label className="adm-field"><span>Text</span><input value={dlg.text} onChange={e => D({ text: e.target.value })}/></label><label className="adm-field"><span>URL</span><input value={dlg.url} onChange={e => D({ url: e.target.value })} placeholder="https://"/></label></div>}

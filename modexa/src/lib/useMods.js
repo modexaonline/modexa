@@ -13,6 +13,7 @@ export function normalize(row) {
     requirements: Array.isArray(row.requirements) ? row.requirements : [], install: Array.isArray(row.install) ? row.install : [],
     featured: Boolean(row.featured), badge: row.badge || '', downloadUrl: row.download_url || '',
     type: row.listing_type === 'game' ? 'game' : 'app', content: row.content || '', href: (row.listing_type === 'game' ? '/games/' : '/apps/') + row.slug,
+    faqs: Array.isArray(row.faqs) ? row.faqs.filter(f => f && f.q && f.a) : [],
     seo_title: row.seo_title || '', seo_description: row.seo_description || '', canonical_url: row.canonical_url || '', noindex: Boolean(row.noindex),
   }
 }

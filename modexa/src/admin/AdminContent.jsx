@@ -5,7 +5,7 @@ import { refreshMods } from '../lib/useMods'
 import { refreshPosts } from '../lib/usePosts'
 import { useSettings } from '../lib/useSettings'
 import RichEditor from './RichEditor'
-import { ImageField, Counter, slugify, lines } from './fields'
+import { ImageField, Counter, slugify, lines, FaqEditor, cleanFaqs } from './fields'
 import './admin-extra.css'
 
 export const PLATFORMS = ['Android', 'iOS', 'Android & iOS', 'Windows', 'PC', 'macOS', 'Linux', 'PlayStation', 'Xbox', 'Nintendo Switch', 'Web / Browser', 'All platforms']
@@ -23,8 +23,8 @@ const CFG = {
   games: { table: 'mods', title: 'Game listings', one: 'game', type: 'game', href: r => '/games/' + r.slug },
 }
 const blank = kind => kind === 'posts'
-  ? { title: '', slug: '', post_type: 'blog', game_slug: '', category: '', excerpt: '', cover_image: '', content: '', status: 'draft', published_at: today(), ads_enabled: true, seo_title: '', seo_description: '', canonical_url: '', noindex: false }
-  : { title: '', slug: '', listing_type: CFG[kind].type, excerpt: '', cover_image: '', content: '', game: '', category: '', platform: 'Android', version: '', creator: '', downloads: 0, download_url: '', badge: '', featured: false, features: [], requirements: [], install: [], status: 'draft', published_at: today(), seo_title: '', seo_description: '', canonical_url: '', noindex: false }
+  ? { title: '', slug: '', post_type: 'blog', game_slug: '', category: '', excerpt: '', cover_image: '', content: '', faqs: [], status: 'draft', published_at: today(), ads_enabled: true, seo_title: '', seo_description: '', canonical_url: '', noindex: false }
+  : { title: '', slug: '', listing_type: CFG[kind].type, excerpt: '', cover_image: '', content: '', game: '', category: '', platform: 'Android', version: '', creator: '', downloads: 0, download_url: '', badge: '', featured: false, features: [], requirements: [], install: [], faqs: [], status: 'draft', published_at: today(), seo_title: '', seo_description: '', canonical_url: '', noindex: false }
 
 export default function AdminContent({ kind, onNotice, onError }) {
   const cfg = CFG[kind], settings = useSettings()
@@ -51,6 +51,7 @@ export default function AdminContent({ kind, onNotice, onError }) {
     payload.title = payload.title.trim(); payload.slug = slugify(payload.slug || payload.title)
     if (!payload.slug) return onError('Slug is required.')
     if (!payload.published_at) payload.published_at = today()
+    payload.faqs = cleanFaqs(payload.faqs)
     if (kind !== 'posts') { payload.downloads = Math.max(0, Number(payload.downloads) || 0); payload.description = payload.description || '' ; payload.features = Array.isArray(payload.features) ? payload.features : lines(payload.features); payload.requirements = Array.isArray(payload.requirements) ? payload.requirements : lines(payload.requirements); payload.install = Array.isArray(payload.install) ? payload.install : lines(payload.install) }
     if (payload.download_url && !/^https?:\/\//i.test(payload.download_url)) return onError('Download link must start with https://')
     setBusy(true)
@@ -87,6 +88,7 @@ export default function AdminContent({ kind, onNotice, onError }) {
             <div className="adm-grid3" style={{ marginTop: 14 }}><label className="adm-field"><span>Version</span><input value={e.version || ''} onChange={ev => set({ version: ev.target.value })}/></label><label className="adm-field"><span>Creator / developer</span><input value={e.creator || ''} onChange={ev => set({ creator: ev.target.value })}/></label><Pick label="Category" value={e.category} onChange={v => set({ category: v })} options={CATEGORIES} empty="Select"/></div>
             <div className="adm-grid3" style={{ marginTop: 14 }}><label className="adm-field"><span>{kind === 'games' ? 'Series / game name' : 'Related game (optional)'}</span><input value={e.game || ''} onChange={ev => set({ game: ev.target.value })}/></label><label className="adm-field"><span>Downloads shown</span><input type="number" min="0" value={e.downloads ?? 0} onChange={ev => set({ downloads: ev.target.value })}/></label><label className="adm-check" style={{ alignSelf: 'end', minHeight: 42 }}><input type="checkbox" checked={!!e.featured} onChange={ev => set({ featured: ev.target.checked })}/> Featured on home</label></div>
             <details style={{ marginTop: 16 }}><summary style={{ cursor: 'pointer', fontWeight: 700 }}>Optional lists (features, requirements, install steps)</summary><div className="adm-grid3" style={{ marginTop: 12 }}>{[['features', 'Features'], ['requirements', 'Requirements'], ['install', 'Install steps']].map(([k, l]) => <label className="adm-field" key={k}><span>{l} (one per line)</span><textarea rows={5} value={listVal(k)} onChange={ev => set({ [k]: ev.target.value })}/></label>)}</div></details></section>}
+          <section className="adm-card"><h3>FAQs</h3><p className="adm-sub">Questions and answers shown at the bottom of the page as an accordion, and sent to Google as FAQ schema. Add as many as you need, remove any, empty ones are ignored.</p><FaqEditor items={e.faqs} onChange={faqs => set({ faqs })}/></section>
           <section className="adm-card"><h3>Search & sharing (SEO)</h3>
             <label className="adm-field"><span>SEO title</span><input value={e.seo_title || ''} onChange={ev => set({ seo_title: ev.target.value })} placeholder={e.title}/><Counter value={e.seo_title || e.title} min={30} max={60}/></label>
             <label className="adm-field" style={{ marginTop: 14 }}><span>Meta description</span><textarea rows={3} value={e.seo_description || ''} onChange={ev => set({ seo_description: ev.target.value })} placeholder={e.excerpt}/><Counter value={e.seo_description || e.excerpt} min={110} max={160}/></label>

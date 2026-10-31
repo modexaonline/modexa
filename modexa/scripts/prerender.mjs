@@ -50,6 +50,7 @@ const NAVL = mergeContent(NAV_DEFAULT, content.nav).header
 const navHtml = () => `<nav aria-label="Main">${[{ to: '/', label: 'Home' }, ...NAVL].map(n => `<a href="${SITE_URL}${n.to}">${esc(n.label)}</a>`).join(' · ')}</nav>`
 const footHtml = () => `<footer><nav aria-label="Legal">${LEGAL_LINKS.map(n => `<a href="${SITE_URL}${n.to}">${esc(n.label)}</a>`).join(' · ')}</nav><p>© ${new Date().getFullYear()} Modexa. Independent; not affiliated with game publishers.</p></footer>`
 const crumbsLd = (url, items) => ({ '@type': 'BreadcrumbList', itemListElement: items.map((b, i) => ({ '@type': 'ListItem', position: i + 1, name: b.label, item: SITE_URL + (b.to || url) })) })
+const cleanF = l => (Array.isArray(l) ? l : []).filter(f => f && f.q && f.a)
 const faqLd = faqs => ({ '@type': 'FAQPage', mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: plain(f.a) } })) })
 const pageLd = (path, title, desc, type = 'WebPage', extra = {}) => ({ '@type': type, '@id': SITE_URL + path + '#webpage', url: SITE_URL + path, name: title, description: desc, inLanguage: 'en', isPartOf: { '@id': SITE_URL + '/#website' }, ...extra })
 function md(src = '') {
@@ -97,18 +98,19 @@ for (const m of mods) {
   const desc = clip(m.seo_description || m.excerpt || m.description || `${m.title} on Modexa.`, 158)
   const list = (a, t) => Array.isArray(a) && a.length ? `<h2>${t}</h2><ul>${a.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''
   add({ path, title, description: desc, h1: m.title, image: m.cover_image, type: 'article', noindex: !!m.noindex, canonical: m.canonical_url || '',
-    body: `<p>${esc(m.excerpt || '')}</p><ul>${m.platform ? `<li>Platform: ${esc(m.platform)}</li>` : ''}${m.version ? `<li>Version: ${esc(m.version)}</li>` : ''}${m.creator ? `<li>Creator: ${esc(m.creator)}</li>` : ''}${m.category ? `<li>Category: ${esc(m.category)}</li>` : ''}</ul>${staticBody(m.content || m.description || '')}${list(m.features, 'Features')}${list(m.requirements, 'Requirements')}${Array.isArray(m.install) && m.install.length ? `<h2>How to install</h2><ol>${m.install.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}`,
+    body: `<p>${esc(m.excerpt || '')}</p><ul>${m.platform ? `<li>Platform: ${esc(m.platform)}</li>` : ''}${m.version ? `<li>Version: ${esc(m.version)}</li>` : ''}${m.creator ? `<li>Creator: ${esc(m.creator)}</li>` : ''}${m.category ? `<li>Category: ${esc(m.category)}</li>` : ''}</ul>${staticBody(m.content || m.description || '')}${list(m.features, 'Features')}${faqHtml(cleanF(m.faqs))}${list(m.requirements, 'Requirements')}${Array.isArray(m.install) && m.install.length ? `<h2>How to install</h2><ol>${m.install.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}`,
     lastmod: (m.updated_at || '').slice(0, 10),
     ld: [pageLd(path, title, desc, 'ItemPage', { dateModified: m.updated_at || undefined }), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: isGame ? 'Games' : 'Apps', to: base.slice(0, -1) }, { label: m.title, to: path }]),
       { '@type': 'SoftwareApplication', name: m.title, applicationCategory: isGame ? 'GameApplication' : 'MobileApplication', operatingSystem: m.platform, description: m.excerpt || undefined, image: m.cover_image || undefined, softwareVersion: m.version || undefined, author: { '@type': 'Person', name: m.creator || 'Modexa' } },
+      ...(cleanF(m.faqs).length ? [faqLd(cleanF(m.faqs))] : []),
       ...(Array.isArray(m.install) && m.install.length ? [{ '@type': 'HowTo', name: `How to install ${m.title}`, step: m.install.map((t, i) => ({ '@type': 'HowToStep', position: i + 1, text: String(t) })) }] : [])] })
 }
 for (const p of posts) {
   const type = p.post_type === 'guide' ? 'guide' : 'blog', path = '/' + type + '/' + p.slug, title = p.seo_title ? `${p.seo_title} | Modexa` : `${p.title} | Modexa`, desc = clip(p.seo_description || p.excerpt || p.title, 158)
   add({ path, title, description: desc, h1: p.title, image: p.cover_image, type: 'article', noindex: !!p.noindex, canonical: p.canonical_url || '', lastmod: (p.updated_at || '').slice(0, 10),
-    body: `<p>${esc(p.excerpt || '')}</p>${staticBody(p.content)}`,
+    body: `<p>${esc(p.excerpt || '')}</p>${staticBody(p.content)}${faqHtml(cleanF(p.faqs))}`,
     ld: [pageLd(path, title, desc, 'WebPage', { dateModified: p.updated_at || undefined }), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: type === 'guide' ? 'Guide' : 'Blog', to: '/' + type }, { label: p.title, to: path }]),
-      { '@type': 'Article', headline: p.title, description: desc, image: p.cover_image || undefined, datePublished: p.published_at || undefined, dateModified: p.updated_at || p.published_at || undefined, author: { '@type': 'Organization', name: 'Modexa' }, publisher: { '@id': SITE_URL + '/#organization' }, mainEntityOfPage: SITE_URL + path }] })
+      { '@type': 'Article', headline: p.title, description: desc, image: p.cover_image || undefined, datePublished: p.published_at || undefined, dateModified: p.updated_at || p.published_at || undefined, author: { '@type': 'Organization', name: 'Modexa' }, publisher: { '@id': SITE_URL + '/#organization' }, mainEntityOfPage: SITE_URL + path }, ...(cleanF(p.faqs).length ? [faqLd(cleanF(p.faqs))] : [])] })
 }
 for (const p of cpages) { if (POLICY_SLUGS.includes(p.slug)) continue
   const path = '/page/' + p.slug, title = p.seo_title ? `${p.seo_title} | Modexa` : `${p.title} | Modexa`, desc = clip(p.seo_description || p.excerpt || p.title, 158)

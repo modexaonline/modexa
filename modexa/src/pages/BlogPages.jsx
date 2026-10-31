@@ -16,6 +16,7 @@ import {readingTime} from '../lib/format'
 import {usePostsState} from '../lib/usePosts'
 import {useAdUnits} from '../lib/useAds'
 import SeoContent from '../components/SeoContent'
+import FaqSection from '../components/FaqSection'
 import {LISTING} from '../content/seo'
 import {usePageContent} from '../lib/siteContent'
 
@@ -47,11 +48,12 @@ export function BlogDetail({type='blog'}){
   const adsOn=post.ads_enabled!==false
   const game=mods.find(m=>m.type==='game'&&m.slug===post.game_slug)
   const headings=contentHeadings(post.content)
+  const faqs=Array.isArray(post.faqs)?post.faqs.filter(f=>f&&f.q&&f.a):[]
   const sameGame=post.game_slug?posts.filter(p=>p.id!==post.id&&p.game_slug===post.game_slug):[]
   const related=(sameGame.length?sameGame:posts.filter(p=>p.id!==post.id&&(p.post_type==='guide'?'guide':'blog')===realType)).slice(0,3)
   const crumbs=[{label:'Home',to:'/'},{label:NAMES[realType],to:'/'+realType},...(game?[{label:game.title,to:game.href}]:[]),{label:post.title}]
   const jsonLd=[{'@type':'Article',headline:post.title,description:post.excerpt||post.seo_description,image:post.cover_image||undefined,datePublished:post.published_at||undefined,dateModified:post.updated_at||post.published_at||undefined,author:{'@type':'Organization',name:'Modexa'},...(game?{about:{'@type':'VideoGame',name:game.title}}:{})}]
-  return <><SEO fullTitle={post.seo_title?`${post.seo_title} | Modexa`:`${post.title} | Modexa`} description={post.seo_description||post.excerpt} noindex={post.noindex} canonical={post.canonical_url} image={post.cover_image} type="article" pageType="WebPage" modified={post.updated_at} breadcrumbs={crumbs} jsonLd={jsonLd}/>
+  return <><SEO fullTitle={post.seo_title?`${post.seo_title} | Modexa`:`${post.title} | Modexa`} description={post.seo_description||post.excerpt} noindex={post.noindex} canonical={post.canonical_url} image={post.cover_image} type="article" pageType="WebPage" modified={post.updated_at} breadcrumbs={crumbs} jsonLd={jsonLd} faqs={faqs}/>
   <article className="container blog-article">
     <div className="breadcrumbs"><nav aria-label="Breadcrumb"><ol>{crumbs.map((c,i)=><li key={c.label}>{i>0&&<ChevronRight size={13} aria-hidden="true"/>}{c.to&&i<crumbs.length-1?<Link to={c.to}>{c.label}</Link>:<span aria-current="page">{c.label}</span>}</li>)}</ol></nav></div>
     <div className="blog-article-head"><span>{post.category||NAMES[realType]}</span><h1>{post.title}</h1>{(post.excerpt||post.seo_description)&&<p>{post.excerpt||post.seo_description}</p>}<small>{game?`${game.title.toUpperCase()} · `:''}{post.published_at||''}{post.published_at?' · ':''}{readingTime(post.content)} MIN READ</small><div className="article-actions"><ShareButton title={post.title} text={post.excerpt}/>{game&&<Link className="button button-outline" to={game.href}><Gamepad2 size={16}/> {game.title}</Link>}</div></div>
@@ -59,6 +61,7 @@ export function BlogDetail({type='blog'}){
     {adsOn&&<AdBlock units={topU} className="ad-in-article"/>}
     {headings.length>2&&<nav className="article-toc" aria-label="On this page"><b>On this page</b>{headings.map(h=><a key={h} href={`#${headingSlug(h)}`}>{h}</a>)}</nav>}
     <div className="blog-article-body"><ContentHtml content={post.content} ads={allU} inContent={inU} adsOn={adsOn}/></div>
+    <FaqSection faqs={faqs}/>
     {adsOn&&<AdBlock units={botU} className="ad-in-article"/>}
     {related.length>0&&<section className="related-posts"><h2>{sameGame.length&&game?`More about ${game.title}`:'Keep reading'}</h2><div className="blog-list-grid">{related.map(p=><article className="blog-list-card" key={p.id}><Link to={postHref(p)} className="blog-list-image"><SafeImg src={p.cover_image} loading="lazy"/></Link><div className="blog-list-content"><div className="blog-list-meta"><span>{p.category||'Guide'}</span></div><Link to={postHref(p)}><h2>{p.title}</h2></Link></div></article>)}</div></section>}
   </article></>

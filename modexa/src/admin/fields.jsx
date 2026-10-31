@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Upload, Image as ImageIcon, ArrowUp, ArrowDown, Trash2 } from 'lucide-react'
+import { Upload, Image as ImageIcon, ArrowUp, ArrowDown, Trash2, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import './admin-extra.css'
 
@@ -51,3 +51,19 @@ export function Move({ i, n, onMove, onRemove, label = 'item' }) {
 export const moveItem = (arr, i, d) => { const j = i + d; if (j < 0 || j >= arr.length) return arr; const c = [...arr]; [c[i], c[j]] = [c[j], c[i]]; return c }
 export const lines = t => String(t || '').split('\n').map(x => x.trim()).filter(Boolean)
 export const paras = t => String(t || '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean)
+
+// FAQ list editor: add / remove / reorder question + answer pairs. Used by app, game, blog and guide editors.
+export const cleanFaqs = list => (Array.isArray(list) ? list : []).map(f => ({ q: String(f?.q || '').trim(), a: String(f?.a || '').trim() })).filter(f => f.q && f.a)
+export function FaqEditor({ items, onChange }) {
+  const list = Array.isArray(items) ? items : []
+  const upd = (i, p) => onChange(list.map((x, k) => k === i ? { ...x, ...p } : x))
+  return <div className="adm-repeat">
+    {list.length === 0 && <p className="adm-hint">No FAQs yet. Click “Add FAQ” to add a question and answer.</p>}
+    {list.map((f, i) => <div className="adm-item" key={i}>
+      <div className="adm-item-head"><b>FAQ #{i + 1}</b><Move i={i} n={list.length} label="FAQ" onMove={(x, d) => onChange(moveItem(list, x, d))} onRemove={x => onChange(list.filter((_, k) => k !== x))}/></div>
+      <label className="adm-field"><span>Question</span><input value={f.q || ''} maxLength={200} onChange={e => upd(i, { q: e.target.value })} placeholder="e.g. Is this app free to download?"/></label>
+      <label className="adm-field"><span>Answer</span><textarea rows={3} value={f.a || ''} onChange={e => upd(i, { a: e.target.value })} placeholder="Write the answer. You can use **bold** and [links](/page)."/></label>
+    </div>)}
+    <button type="button" className="adm-btn" onClick={() => onChange([...list, { q: '', a: '' }])}><Plus size={15}/> Add FAQ</button>
+  </div>
+}

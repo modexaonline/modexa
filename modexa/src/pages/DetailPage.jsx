@@ -5,6 +5,7 @@ import ModCard from '../components/ModCard'
 import ContentHtml from '../components/ContentHtml'
 import SafeImg from '../components/SafeImg'
 import ShareButton from '../components/ShareButton'
+import FaqSection from '../components/FaqSection'
 import AdSlot from '../components/AdSlot'
 import { PageSkeleton } from '../components/Skeleton'
 import { formatCount } from '../data/mods'
@@ -35,7 +36,7 @@ export default function DetailPage({ type = 'app', savedIds, onToggleSave }) {
   const rows = [['Creator', mod.creator], ['Version', mod.version], ['Updated', mod.updated], ['Platform', mod.platform], ['Category', mod.category]].filter(r => r[1])
   const body = mod.content || mod.description
   return <>
-    <SEO fullTitle={mod.seo_title ? `${mod.seo_title} | Modexa` : `${mod.title}: ${label.slice(0, -1)} | Modexa`} description={mod.seo_description || mod.short || `${mod.title} on Modexa.`} noindex={mod.noindex} canonical={mod.canonical_url} image={mod.image} type="article" pageType="ItemPage" modified={mod.updated} breadcrumbs={crumbs} jsonLd={jsonLd}/>
+    <SEO fullTitle={mod.seo_title ? `${mod.seo_title} | Modexa` : `${mod.title}: ${label.slice(0, -1)} | Modexa`} description={mod.seo_description || mod.short || `${mod.title} on Modexa.`} noindex={mod.noindex} canonical={mod.canonical_url} image={mod.image} type="article" pageType="ItemPage" modified={mod.updated} breadcrumbs={crumbs} jsonLd={jsonLd} faqs={mod.faqs}/>
     <div className="detail-page container">
       <nav className="breadcrumbs" aria-label="Breadcrumb"><ol>{crumbs.map((c, i) => <li key={c.label}>{i > 0 && <ChevronRight size={13} aria-hidden="true"/>}{c.to && i < crumbs.length - 1 ? <Link to={c.to}>{c.label}</Link> : <span aria-current="page">{c.label}</span>}</li>)}</ol></nav>
       <div className="detail-hero">
@@ -58,6 +59,7 @@ export default function DetailPage({ type = 'app', savedIds, onToggleSave }) {
           {mod.features?.length > 0 && <section className="detail-list"><h2>Features</h2><ul>{mod.features.map(f => <li key={f}><Check size={16}/>{f}</li>)}</ul></section>}
           {mod.requirements?.length > 0 && <section className="detail-list"><h2>Requirements</h2><ul>{mod.requirements.map(f => <li key={f}><Check size={16}/>{f}</li>)}</ul></section>}
           {mod.install?.length > 0 && <section className="detail-list"><h2>How to install</h2><ol>{mod.install.map(s => <li key={s}>{s}</li>)}</ol></section>}
+          <FaqSection faqs={mod.faqs}/>
           <AdSlot placement="mod_bottom" gameSlug={slugify(mod.game)}/>
         </div>
         <aside className="detail-sidebar">
