@@ -25,6 +25,7 @@ export default function HomePage({ savedIds, onToggleSave }) {
   const [query, setQuery] = useState('')
   const apps = mods.filter(m => m.type !== 'game'), gameListings = mods.filter(m => m.type === 'game')
   const featured = (apps.filter(m => m.featured).length ? apps.filter(m => m.featured) : apps).slice(0, 3)
+  const shownGames = (gameListings.filter(m => m.featured).length ? gameListings.filter(m => m.featured) : gameListings).slice(0, 4)
   const home = usePageContent('home', { ...LISTING.home, ...HOME_DEFAULT })
   return <>
     <SEO fullTitle={home.seoTitle} description={home.description} faqs={home.faqs}/>
@@ -56,7 +57,7 @@ export default function HomePage({ savedIds, onToggleSave }) {
     <div className="container"><AdSlot placement="home_middle"/></div>
     {gameListings.length > 0 && <section className="section-block section-muted"><div className="container">
       <div className="section-heading"><div><div className="eyebrow">FIND YOUR WORLD</div><h2>{home.headings.games.title} <span className="text-gradient">{home.headings.games.accent}</span></h2><p>{home.headings.games.text}</p></div><Link className="text-link" to="/games">All games <ArrowRight size={16}/></Link></div>
-      <div className="games-grid">{gameListings.slice(0, 4).map((game, i) => <Link to={game.href} className="game-card" key={game.id}><SafeImg src={game.image} loading="lazy"/><div className="game-overlay"/><div className="game-info"><span className="game-count">{game.platform}</span><h3>{game.title}</h3><span className="game-cta">Open <ArrowUpRight size={15}/></span></div><span className="game-index">0{i + 1}</span></Link>)}</div>
+      <div className="games-grid">{shownGames.map((game, i) => <Link to={game.href} className="game-card" key={game.id}><SafeImg src={game.image} loading="lazy"/><div className="game-overlay"/><div className="game-info"><span className="game-count">{game.platform}</span><h3>{game.title}</h3><span className="game-cta">Open <ArrowUpRight size={15}/></span></div><span className="game-index">0{i + 1}</span></Link>)}</div>
     </div></section>}
 
 
