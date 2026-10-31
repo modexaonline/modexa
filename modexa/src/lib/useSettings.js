@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase, supabaseConfigured } from './supabase'
 
-export const defaultSettings = { site_name: 'Modexa', tagline: 'Discover mods. Redefine your game.', contact_email: '', announcement: '', announcement_link: '', announcement_active: false, twitter_url: '', youtube_url: '', discord_url: '', ads_enabled: false, ads_require_consent: true, logo_url: '', default_og_image: '', footer_text: '' }
+export const defaultSettings = { site_name: 'Modexa', tagline: 'Discover mods. Redefine your game.', contact_email: '', announcement: '', announcement_link: '', announcement_active: false, twitter_url: '', youtube_url: '', discord_url: '', ads_enabled: false, ads_require_consent: true, logo_url: '', default_og_image: '', footer_text: '', social_links: [], announcement_position: 'top', download_wait_seconds: 30, monetag_code: '', monetag_enabled: true }
 let cache = null, inflight = null
 const listeners = new Set()
 

@@ -3,6 +3,14 @@ import { Upload, Image as ImageIcon, ArrowUp, ArrowDown, Trash2 } from 'lucide-r
 import { supabase } from '../lib/supabase'
 import './admin-extra.css'
 
+export async function uploadImage(file) {
+  if (!/^image\//.test(file.type)) throw new Error('Please choose an image file.')
+  if (file.size > 5 * 1024 * 1024) throw new Error('Image must be 5 MB or smaller.')
+  const path = `uploads/${Date.now()}-${(file.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'image')}.${(file.name.split('.').pop() || 'png').toLowerCase()}`
+  const { error } = await supabase.storage.from('modexa-media').upload(path, file, { cacheControl: '31536000', upsert: false, contentType: file.type })
+  if (error) throw new Error(error.message)
+  return supabase.storage.from('modexa-media').getPublicUrl(path).data.publicUrl
+}
 export const slugify = v => String(v || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
 export function Switch({ checked, onChange, label }) {

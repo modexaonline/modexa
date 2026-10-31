@@ -53,3 +53,10 @@ export function useAdByKey(key, ctx = {}) {
   const all = useAdUnits('', ctx)
   return all.find(u => u.slot_key === key) || null
 }
+
+// Debug only: raw list of active units (ignores consent / device / targeting) so the debug panel can explain what is happening.
+export function useAdsRaw() {
+  const [s, setS] = useState(state)
+  useEffect(() => { listeners.add(setS); setS(state); load(); return () => { listeners.delete(setS) } }, [])
+  return s.items
+}

@@ -39,9 +39,9 @@ export default function EditorTools({ value, onChange, ads = [] }) {
       <span className="sep"/>
       <select aria-label="Insert ad" value="" onChange={e => { if (e.target.value) insert(`[ad:${e.target.value}]`, { block: true }); e.target.value = '' }}>
         <option value="">＋ Insert ad…</option>
-        {ads.length === 0 ? <option disabled>No ads yet — create one in Ads manager</option> : ads.map(a => <option key={a.slot_key} value={a.slot_key}>{a.name} · {a.kind === 'direct_link' ? 'direct link' : a.size}</option>)}
+        {ads.length === 0 ? <option disabled>No ads yet, create one in Ads manager</option> : ads.map(a => <option key={a.slot_key} value={a.slot_key}>{a.name} · {a.kind === 'direct_link' ? 'direct link' : a.size}</option>)}
       </select>
-      <span style={{ fontSize: 12, color: '#6b7280', display: 'inline-flex', gap: 4, alignItems: 'center' }}><Megaphone size={13}/> Ads also appear automatically — see Ads manager.</span>
+      <span style={{ fontSize: 12, color: '#6b7280', display: 'inline-flex', gap: 4, alignItems: 'center' }}><Megaphone size={13}/> Ads also appear automatically, see Ads manager.</span>
     </div>
     {pop && <div className="adm-pop"><b style={{ fontSize: 13 }}>{pop === 'button' ? 'Insert direct-link button' : pop === 'image' ? 'Insert image' : 'Insert link'}</b>
       <div className="row"><label className="adm-field"><span>{pop === 'image' ? 'Alt text' : 'Button / link text'}</span><input value={label} onChange={e => setLabel(e.target.value)} placeholder={pop === 'button' ? 'Download now' : ''}/></label><label className="adm-field"><span>URL (https://…)</span><input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://"/></label><div className="adm-actions"><button type="button" className="adm-btn primary" onClick={confirm}>Insert</button><button type="button" className="adm-btn" onClick={() => setPop(null)}>Cancel</button></div></div></div>}

@@ -11,7 +11,7 @@ const DEFAULT_IMG = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?a
 // title: page title (without brand). breadcrumbs: [{label,to}]. faqs: [{q,a}] -> FAQPage schema. jsonLd: extra schema node(s).
 export default function SEO({ title, fullTitle, description, noindex = false, canonical = '', image = '', type = 'website', jsonLd = null, breadcrumbs = null, faqs = null, pageType = 'WebPage', modified = '' }) {
   useEffect(() => {
-    const finalTitle = fullTitle || (title ? `${title} | Modexa` : 'Modexa — Discover Game Mods, Custom Content & Guides')
+    const finalTitle = fullTitle || (title ? `${title} | Modexa` : 'Modexa: Discover Game Mods, Custom Content & Guides')
     const summary = description || 'Discover game mods, custom content and practical modding guides on Modexa.'
     const origin = window.location.origin
     const url = canonical || origin + window.location.pathname

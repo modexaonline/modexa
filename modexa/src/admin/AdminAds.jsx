@@ -6,6 +6,7 @@ import { refreshAds } from '../lib/useAds'
 import { setSettingsCache } from '../lib/useSettings'
 import AdUnit from '../components/AdUnit'
 import { Switch } from './fields'
+import MonetagCard from './MonetagCard'
 import './admin-extra.css'
 
 const BLANK = { name: '', slot_key: '', kind: 'banner', size: '300x250', custom_width: 300, custom_height: 250, render_mode: 'isolated', code: '', link_url: '', link_label: 'Learn more', link_text: '', link_style: 'button', placement: 'blog_in_content', position_after: 3, repeat_every: 0, devices: 'all', scope: 'all', target_slugs: [], exclude_slugs: [], label: 'Advertisement', priority: 0, status: 'active' }
@@ -41,7 +42,7 @@ export default function AdminAds({ onNotice, onError }) {
     const next = { ...master, ...patch }; setMaster(next)
     const { error } = await supabase.from('site_settings').update(patch).eq('id', 1)
     if (error) { onError(error.message); load(); return }
-    setSettingsCache(next); onNotice(patch.ads_enabled === true ? 'Ads are ON for the whole site.' : patch.ads_enabled === false ? 'Ads are OFF — nothing will show.' : 'Saved.')
+    setSettingsCache(next); onNotice(patch.ads_enabled === true ? 'Ads are ON for the whole site.' : patch.ads_enabled === false ? 'Ads are OFF, nothing will show.' : 'Saved.')
   }
 
   const set = patch => setEditing(e => ({ ...e, ...patch }))
@@ -96,19 +97,19 @@ export default function AdminAds({ onNotice, onError }) {
 
           <section className="adm-card"><h3>2 · Ad code</h3>
             {editing.kind === 'direct_link' ? <>
-              <p className="adm-sub">No code needed — paste your direct / smart link. It opens in a new tab with <code className="adm-code-chip">rel="sponsored nofollow"</code>.</p>
+              <p className="adm-sub">No code needed, paste your direct / smart link. It opens in a new tab with <code className="adm-code-chip">rel="sponsored nofollow"</code>.</p>
               <div className="adm-grid2"><label className="adm-field"><span>Direct link URL *</span><input value={editing.link_url} onChange={e => set({ link_url: e.target.value })} placeholder="https://…"/></label><label className="adm-field"><span>Button / link text</span><input value={editing.link_label} maxLength={80} onChange={e => set({ link_label: e.target.value })}/></label></div>
               <div className="adm-grid2" style={{ marginTop: 16 }}><label className="adm-field"><span>Description (optional)</span><input value={editing.link_text} maxLength={300} onChange={e => set({ link_text: e.target.value })} placeholder="Short text shown above or inside the button"/></label><label className="adm-field"><span>Style</span><select value={editing.link_style} onChange={e => set({ link_style: e.target.value })}><option value="button">Button</option><option value="card">Card</option><option value="text">Text link</option></select></label></div>
             </> : <>
-              <p className="adm-sub">Paste the full snippet exactly as your network gave it (script tags, iframe, ins tag — anything).</p>
+              <p className="adm-sub">Paste the full snippet exactly as your network gave it (script tags, iframe, ins tag, anything).</p>
               <label className="adm-field"><span>Code {k.code ? '*' : ''}</span><textarea className="adm-code" spellCheck={false} value={editing.code} onChange={e => set({ code: e.target.value })} placeholder={'<script async src="https://…"></script>\n<ins …></ins>'}/></label>
-              {!isGlobal && <div style={{ marginTop: 16 }}><label className="adm-field"><span>How should it render?</span><select value={editing.render_mode} onChange={e => set({ render_mode: e.target.value })}><option value="isolated">Isolated (recommended) — safe iframe, best for banners</option><option value="inline">Inline — runs on the page, needed by AdSense / some native widgets</option></select><span className="adm-hint">Isolated keeps ad scripts away from your site data. If an ad stays blank, try Inline.</span></label></div>}
-              <div className="adm-alert warn" style={{ marginTop: 14 }}><AlertTriangle size={16} style={{ flex: 'none', marginTop: 2 }}/><div>Only paste code from networks you trust — ad code can run on your visitors’ browsers. Pop-under and social-bar scripts run site-wide and can annoy visitors; use them carefully.</div></div>
+              {!isGlobal && <div style={{ marginTop: 16 }}><label className="adm-field"><span>How should it render?</span><select value={editing.render_mode} onChange={e => set({ render_mode: e.target.value })}><option value="isolated">Auto (recommended), safe frame first; if the network shows nothing, runs directly on the page</option><option value="inline">Inline, runs directly on the page (AdSense & loader scripts)</option><option value="strict">Strict sandbox, most secure, but many networks will stay blank</option></select><span className="adm-hint"><b>Auto</b> works for almost every network: it tries a real same-site frame (best for document.write / atOptions banners) and automatically switches to running on the page if the frame stays empty. Choose <b>Inline</b> to force page mode (AdSense/native widgets). Avoid <b>Strict</b> unless your network supports it.</span></label></div>}
+              <div className="adm-alert warn" style={{ marginTop: 14 }}><AlertTriangle size={16} style={{ flex: 'none', marginTop: 2 }}/><div>Only paste code from networks you trust, ad code can run on your visitors’ browsers. Pop-under and social-bar scripts run site-wide and can annoy visitors; use them carefully.</div></div>
             </>}
           </section>
 
           {editing.kind !== 'direct_link' && !k.global && <section className="adm-card"><h3>3 · Size</h3><p className="adm-sub">Pick the exact size your network gave you for this code.</p>
-            <div className="adm-grid2"><label className="adm-field"><span>Ad size</span><select value={editing.size} onChange={e => set({ size: e.target.value })}>{AD_SIZES.map(s => <option key={s.id} value={s.id}>{s.w ? `${s.w} × ${s.h} — ${s.label}` : s.label}</option>)}</select><span className="adm-hint">{AD_SIZES.find(s => s.id === editing.size)?.note}</span></label>
+            <div className="adm-grid2"><label className="adm-field"><span>Ad size</span><select value={editing.size} onChange={e => set({ size: e.target.value })}>{AD_SIZES.map(s => <option key={s.id} value={s.id}>{s.w ? `${s.w} × ${s.h}, ${s.label}` : s.label}</option>)}</select><span className="adm-hint">{AD_SIZES.find(s => s.id === editing.size)?.note}</span></label>
               {editing.size === 'custom' && <div className="adm-grid2"><label className="adm-field"><span>Width (px)</span><input type="number" min="1" max="2000" value={editing.custom_width} onChange={e => set({ custom_width: e.target.value })}/></label><label className="adm-field"><span>Height (px)</span><input type="number" min="1" max="2000" value={editing.custom_height} onChange={e => set({ custom_height: e.target.value })}/></label></div>}
               {editing.size === 'responsive' && <label className="adm-field"><span>Height (px)</span><input type="number" min="1" max="2000" value={editing.custom_height} onChange={e => set({ custom_height: e.target.value })}/><span className="adm-hint">Width fills the available space.</span></label>}
             </div>
@@ -139,22 +140,25 @@ export default function AdminAds({ onNotice, onError }) {
         </div>
         <aside className="adm-sticky">
           <section className="adm-card"><h3>Live preview</h3><p className="adm-sub">Some networks stay blank until your domain is approved.</p>
-            {isGlobal ? <div className="adm-alert info"><Info size={16} style={{ flex: 'none', marginTop: 2 }}/><div>This script runs in the background on every public page — there is nothing visual to preview.</div></div> : <div className="adm-preview-wrap"><AdUnit unit={{ ...editing, id: 'preview', slot_key: editing.slot_key || 'preview' }} preview/></div>}
+            {isGlobal ? <div className="adm-alert info"><Info size={16} style={{ flex: 'none', marginTop: 2 }}/><div>This script runs in the background on every public page, there is nothing visual to preview.</div></div> : <div className="adm-preview-wrap"><AdUnit unit={{ ...editing, id: 'preview', slot_key: editing.slot_key || 'preview' }} preview/></div>}
           </section>
-          <section className="adm-card"><h3>Tips</h3><ul className="adm-tip-list"><li>Banner code sizes must match the size you pick.</li><li>Use <b>Inline</b> render for Google AdSense.</li><li>Add a <b>Direct link</b> ad for affiliate / smartlink offers.</li><li>Test on a phone: use <b>Devices → Mobile only</b> for 320×50 banners.</li></ul></section>
+          <section className="adm-card"><h3>Ad not showing?</h3><p className="adm-sub">Open your site with <code className="adm-code-chip">?adsdebug=1</code> (for example <a href="/?adsdebug=1" target="_blank" rel="noopener noreferrer">your home page</a>). A panel tells you if ads are off, consent is missing, an ad blocker is active, or the network returned an empty slot.</p></section>
+          <section className="adm-card"><h3>Tips</h3><ul className="adm-tip-list"><li>Banner code sizes must match the size you pick.</li><li>Use <b>Inline</b> render for Google AdSense.</li><li>Pop-under / social bar need a <b>site-wide script</b> placement. They fire after a click, once per visitor per day.</li><li>Add a <b>Direct link</b> ad for affiliate / smartlink offers.</li><li>Test on a phone: use <b>Devices → Mobile only</b> for 320×50 banners.</li></ul></section>
         </aside>
       </div>
     </form>
   }
 
   return <div className="adm">
-    <div className="adm-head"><div><h2>Ads manager</h2><p>Add banners, pop-unders, native widgets, custom code or direct links. Choose the size and placement once — it then works on every blog automatically. Use <code className="adm-code-chip">[ad:shortcode]</code> in a post for exact placement.</p></div><button className="adm-btn primary" onClick={() => setEditing({ ...BLANK })}><Plus size={16}/> New ad</button></div>
+    <div className="adm-head"><div><h2>Ads manager</h2><p>Add banners, pop-unders, native widgets, custom code or direct links. Choose the size and placement once, it then works on every blog automatically. Use <code className="adm-code-chip">[ad:shortcode]</code> in a post for exact placement.</p></div><button className="adm-btn primary" onClick={() => setEditing({ ...BLANK })}><Plus size={16}/> New ad</button></div>
+    <MonetagCard onNotice={onNotice} onError={onError}/>
     <section className="adm-card" style={{ display: 'grid', gap: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
         <div><h3 style={{ margin: 0 }}>Show ads on the website</h3><p className="adm-sub" style={{ margin: '4px 0 0' }}>Master switch. When OFF, no ad code is loaded anywhere.</p></div>
         <Switch checked={master.ads_enabled} onChange={v => saveMaster({ ads_enabled: v })} label="Ads enabled"/>
       </div>
       {master.ads_enabled && <label className="adm-check"><input type="checkbox" checked={master.ads_require_consent} onChange={e => saveMaster({ ads_require_consent: e.target.checked })}/><span>Load ads only after the visitor accepts cookies <small style={{ display: 'block', color: '#6b7280', fontWeight: 400 }}>Recommended (required in the EU/UK and many other regions). The cookie notice then shows “Accept all / Essential only”. Privacy and Cookie policies get an Advertising section automatically.</small></span></label>}
+      <div className="adm-alert info"><Info size={16} style={{ flex: 'none', marginTop: 2 }}/><div><b>Real ads can stay blank</b> until your ad network approves modexa.online, when there is nothing to serve (low fill), or if the visitor uses an ad blocker. Test in a private window with extensions off and add <code className="adm-code-chip">?adsdebug=1</code> to any page URL for a live diagnosis.</div></div>
       {!master.ads_enabled && <div className="adm-alert warn"><AlertTriangle size={16} style={{ flex: 'none', marginTop: 2 }}/><div>Ads are currently <b>OFF</b>. Create your ads, then switch this on.</div></div>}
     </section>
     <section className="adm-card" style={{ padding: 0 }}>
@@ -163,7 +167,7 @@ export default function AdminAds({ onNotice, onError }) {
         <select className="adm-input" value={fp} onChange={e => setFp(e.target.value)} aria-label="Filter by placement"><option value="all">All placements</option>{AD_PLACEMENTS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
         <select className="adm-input" value={fs} onChange={e => setFs(e.target.value)} aria-label="Filter by status"><option value="all">All statuses</option><option value="active">Active</option><option value="paused">Paused</option></select>
       </div>
-      {loading ? <p style={{ padding: 24, color: '#6b7280' }}>Loading…</p> : shown.length === 0 ? <div style={{ padding: 40, textAlign: 'center', color: '#4b5563' }}><Megaphone size={28}/><h3 style={{ margin: '10px 0 4px' }}>{ads.length ? 'No ads match' : 'No ads yet'}</h3><p style={{ margin: 0 }}>{ads.length ? 'Try other filters.' : 'Create your first ad — banner, pop-under or direct link.'}</p></div> :
+      {loading ? <p style={{ padding: 24, color: '#6b7280' }}>Loading…</p> : shown.length === 0 ? <div style={{ padding: 40, textAlign: 'center', color: '#4b5563' }}><Megaphone size={28}/><h3 style={{ margin: '10px 0 4px' }}>{ads.length ? 'No ads match' : 'No ads yet'}</h3><p style={{ margin: 0 }}>{ads.length ? 'Try other filters.' : 'Create your first ad, banner, pop-under or direct link.'}</p></div> :
         <div className="adm-scroll"><table className="adm-table"><thead><tr><th>Ad</th><th>Type</th><th>Size</th><th>Placement</th><th>Runs on</th><th>Status</th><th>Actions</th></tr></thead><tbody>{shown.map(a => <tr key={a.id}>
           <td><div className="adm-name"><b>{a.name}</b><small><button type="button" className="adm-code-chip" style={{ cursor: 'pointer' }} onClick={() => copy(`[ad:${a.slot_key}]`)} title="Copy shortcode"><ClipboardCopy size={11}/> [ad:{a.slot_key}]</button></small></div></td>
           <td>{kindOf(a.kind).label.split(' / ')[0]}</td><td>{sizeOf(a)}</td>

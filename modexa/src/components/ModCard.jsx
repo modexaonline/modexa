@@ -6,7 +6,7 @@ import SafeImg from './SafeImg'
 export default function ModCard({ mod, saved, onToggleSave, compact = false }) {
   return <article className={`mod-card ${compact ? 'mod-card-compact' : ''}`}>
     <div className="mod-image-wrap">
-      <Link to={`/mods/${mod.slug}`} className="mod-image-link" aria-label={`View ${mod.title}`}>
+      <Link to={mod.href} className="mod-image-link" aria-label={`View ${mod.title}`}>
         <SafeImg src={mod.image} className="mod-image" loading="lazy"/>
       </Link>
       {mod.badge && <span className="image-badge">{mod.badge}</span>}
@@ -14,12 +14,12 @@ export default function ModCard({ mod, saved, onToggleSave, compact = false }) {
     </div>
     <div className="mod-card-content">
       <div className="card-meta"><span>{mod.game}</span><span className="meta-dot">·</span><span>{mod.category}</span></div>
-      <Link to={`/mods/${mod.slug}`} className="mod-title-link"><h3>{mod.title}</h3></Link>
+      <Link to={mod.href} className="mod-title-link"><h3>{mod.title}</h3></Link>
       <p className="mod-short">{mod.short}</p>
       <div className="mod-card-bottom">
         <span className="platform-pill">{mod.platform}</span>
         <span className="download-count"><Download size={14}/>{formatCount(mod.downloads)}</span>
-        <Link to={`/mods/${mod.slug}`} className="card-arrow" aria-label={`Details for ${mod.title}`}><ArrowUpRight size={17}/></Link>
+        <Link to={mod.href} className="card-arrow" aria-label={`Details for ${mod.title}`}><ArrowUpRight size={17}/></Link>
       </div>
     </div>
   </article>

@@ -1,13 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import ErrorBoundary from './components/ErrorBoundary'
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
 import { PageSkeleton } from './components/Skeleton'
-const ModsPage = lazy(() => import('./pages/ModsPage'))
+const ListingPage = lazy(() => import('./pages/ListingPage'))
 const DetailPage = lazy(() => import('./pages/DetailPage'))
-const GamesPage = lazy(() => import('./pages/GamesPage'))
-const CategoriesPage = lazy(() => import('./pages/CategoriesPage'))
+const LegacyModRedirect = lazy(() => import('./pages/DetailPage').then(m => ({ default: m.LegacyModRedirect })))
 const SearchPage = lazy(() => import('./pages/SearchPage'))
 const SavedPage = lazy(() => import('./pages/SavedPage'))
 const SubmitPage = lazy(() => import('./pages/SubmitPage'))
@@ -29,20 +28,21 @@ export default function App() {
   const onToggleSave = id => setSavedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   return <Layout savedCount={savedIds.length}>
     <Suspense fallback={<PageSkeleton/>}><Routes>
-      <Route path="/blog" element={<BlogIndex/>}/>
-      <Route path="/blog/:slug" element={<BlogDetail/>}/>
-      <Route path="/page/:slug" element={<CustomPage/>}/>
       <Route path="/" element={<HomePage savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
-      <Route path="/mods" element={<ModsPage savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
-      <Route path="/mods/:slug" element={<DetailPage savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
-      <Route path="/games" element={<GamesPage savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
-      <Route path="/games/:slug" element={<GamesPage savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
-      <Route path="/categories" element={<CategoriesPage savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
-      <Route path="/categories/:slug" element={<CategoriesPage savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
-      <Route path="/search" element={<SearchPage savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
+      <Route path="/apps" element={<ListingPage type="app" savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
+      <Route path="/apps/:slug" element={<DetailPage type="app" savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
+      <Route path="/games" element={<ListingPage type="game" savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
+      <Route path="/games/:slug" element={<DetailPage type="game" savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
+      <Route path="/guide" element={<BlogIndex type="guide"/>}/>
+      <Route path="/guide/:slug" element={<BlogDetail type="guide"/>}/>
+      <Route path="/blog" element={<BlogIndex type="blog"/>}/>
+      <Route path="/blog/:slug" element={<BlogDetail type="blog"/>}/>
+      <Route path="/page/:slug" element={<CustomPage savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
+      <Route path="/search" element={<SearchPage/>}/>
       <Route path="/saved" element={<SavedPage savedIds={savedIds} onToggleSave={onToggleSave}/>}/>
-      <Route path="/trending" element={<ModsPage savedIds={savedIds} onToggleSave={onToggleSave} initialMode="trending"/>}/>
-      <Route path="/latest" element={<ModsPage savedIds={savedIds} onToggleSave={onToggleSave} initialMode="latest"/>}/>
+      <Route path="/mods" element={<Navigate to="/apps" replace/>}/>
+      <Route path="/mods/:slug" element={<LegacyModRedirect/>}/>
+      {['/categories', '/categories/:slug', '/trending', '/latest'].map(p => <Route key={p} path={p} element={<Navigate to="/apps" replace/>}/>)}
       <Route path="/submit-mod" element={<SubmitPage/>}/>
       {['about','contact','guidelines','faq','privacy','terms','cookies','copyright'].map(slug => <Route key={slug} path={`/${slug}`} element={<InfoPage/>}/>)}
       <Route path="*" element={<NotFoundPage/>}/>

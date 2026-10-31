@@ -42,7 +42,7 @@ export default function SubmitPage() {
     setSubmitted(true)
   }
   return <>
-    <SEO fullTitle={L.seoTitle} description={L.description} breadcrumbs={[{label:'Home',to:'/'},{label:'Submit a Mod',to:'/submit-mod'}]} faqs={L.faqs}/>
+    <SEO fullTitle={L.seoTitle} description={L.description} breadcrumbs={[{label:'Home',to:'/'},{label:'Submit an App',to:'/submit-mod'}]} faqs={L.faqs}/>
     <PageHero eyebrow="SHARE YOUR CREATION" title={<>Give your mod a <span className="text-gradient">spotlight.</span></>} description={L.description}/>
     <section className="directory-section submit-section"><div className="container submit-layout">
       <div className="submit-main">

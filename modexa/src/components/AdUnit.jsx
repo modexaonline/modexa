@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { unitDims } from '../lib/adConfig'
+import { useAdsDebug } from '../lib/adsDebug'
+import { postscribe } from '../lib/postscribe'
 
 function useInView(ref, margin = '300px') {
   const [seen, setSeen] = useState(false)
@@ -12,14 +14,10 @@ function useInView(ref, margin = '300px') {
   return seen
 }
 
-// Re-creates <script> tags so injected ad code actually executes.
-export function injectHtml(container, html) {
-  const range = document.createRange(); range.selectNode(container)
-  const frag = range.createContextualFragment(html)
-  container.appendChild(frag)
-}
+// Kept for compatibility: runs code in a container (supports document.write based ad tags).
+export function injectHtml(container, html) { return postscribe(container, html) }
 
-const docFor = (code) => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank"><style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}body{display:flex;justify-content:center;align-items:flex-start}</style></head><body>${code}</body></html>`
+const strictDoc = (code) => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank"><style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}body{display:flex;justify-content:center;align-items:flex-start}</style></head><body>${code}</body></html>`
 
 function DirectLink({ unit }) {
   const rel = 'sponsored nofollow noopener noreferrer'
@@ -28,28 +26,55 @@ function DirectLink({ unit }) {
   return <div className="ad-direct ad-direct-button">{unit.link_text && <p>{unit.link_text}</p>}<a className="button button-primary" href={unit.link_url} target="_blank" rel={rel}>{unit.link_label}</a></div>
 }
 
-function Isolated({ unit, preview }) {
+function Frame({ unit, frameRef }) {
   const { w, h, fluid } = unitDims(unit)
-  return <iframe title={unit.name || 'Advertisement'} className="ad-frame" loading="lazy" scrolling="no" width={fluid ? '100%' : w} height={h}
-    style={{ width: fluid ? '100%' : w, maxWidth: '100%', height: h }}
-    sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation" referrerPolicy="no-referrer-when-downgrade" srcDoc={docFor(unit.code || '')}/>
+  const common = { title: unit.name || 'Advertisement', className: 'ad-frame', scrolling: 'no', width: fluid ? '100%' : w, height: h, style: { width: fluid ? '100%' : w, maxWidth: '100%', height: h }, referrerPolicy: 'no-referrer-when-downgrade' }
+  if (unit.render_mode === 'strict') return <iframe ref={frameRef} {...common} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation" srcDoc={strictDoc(unit.code || '')}/>
+  return <iframe ref={frameRef} key={unit.id + ':' + (unit.code || '').length} {...common} src="/ad-frame.html" allow="autoplay; fullscreen"
+    onLoad={e => { try { e.target.contentWindow.postMessage({ type: 'modexa-ad', code: unit.code || '' }, window.location.origin) } catch {} }}/>
 }
 
 function Inline({ unit }) {
   const ref = useRef(null)
-  useEffect(() => { const el = ref.current; if (!el) return; el.innerHTML = ''; injectHtml(el, unit.code || ''); return () => { el.innerHTML = '' } }, [unit.id, unit.code])
+  useEffect(() => { const el = ref.current; if (!el) return; el.innerHTML = ''; postscribe(el, unit.code || ''); return () => { el.innerHTML = '' } }, [unit.id, unit.code])
   const { h } = unitDims(unit)
   return <div ref={ref} className="ad-inline" style={{ minHeight: Math.min(h, 120) }}/>
 }
+const hasContent = root => root && [...root.children].some(e => !/^(SCRIPT|STYLE|BASE|META|NOSCRIPT)$/i.test(e.tagName) && (e.offsetHeight > 1 || (e.textContent || '').trim() || e.querySelector('iframe,img,ins,canvas,video')))
 
 export default function AdUnit({ unit, preview = false }) {
-  const holder = useRef(null)
+  const holder = useRef(null), frameRef = useRef(null)
   const visible = useInView(holder)
+  const debug = useAdsDebug() || preview
+  const [status, setStatus] = useState('')
   const { w, h, fluid } = unitDims(unit)
   const isLink = unit.kind === 'direct_link'
-  const body = !visible && !preview ? null : isLink ? <DirectLink unit={unit}/> : unit.render_mode === 'inline' ? <Inline unit={unit}/> : <Isolated unit={unit}/>
+  const base = unit.render_mode === 'inline' ? 'inline' : unit.render_mode === 'strict' ? 'strict' : 'frame'
+  const [mode, setMode] = useState(base), [fell, setFell] = useState(false)
+  useEffect(() => { setMode(base); setFell(false) }, [base, unit.id, unit.code])
+  // AUTO: start in a real same-site frame; if the network put nothing in it, run the same code directly on the page.
+  useEffect(() => {
+    if (isLink || base !== 'frame' || mode !== 'frame' || (!visible && !preview)) return
+    const t = setTimeout(() => { try { if (!hasContent(frameRef.current?.contentDocument?.body)) { setMode('inline'); setFell(true) } } catch {} }, 4500)
+    return () => clearTimeout(t)
+  }, [visible, preview, base, mode, unit.id, unit.code, isLink])
+  useEffect(() => {
+    if (!debug || isLink || (!visible && !preview)) return
+    setStatus('waiting…')
+    const t = setTimeout(() => {
+      try {
+        let root = null
+        if (mode === 'inline') root = holder.current?.querySelector('.ad-inline')
+        else if (mode === 'frame') root = frameRef.current?.contentDocument?.body
+        else { setStatus('strict sandbox, cannot inspect'); return }
+        setStatus(hasContent(root) ? '✓ network content loaded' : '⚠ slot is empty, ad blocker, domain not approved by the network, or no ad to serve')
+      } catch { setStatus('cannot inspect') }
+    }, 7500)
+    return () => clearTimeout(t)
+  }, [debug, visible, preview, unit.id, unit.code, mode, isLink])
+  const body = !visible && !preview ? null : isLink ? <DirectLink unit={unit}/> : mode === 'inline' ? <Inline unit={unit}/> : <Frame unit={{ ...unit, render_mode: mode === 'strict' ? 'strict' : 'isolated' }} frameRef={frameRef}/>
   return <aside ref={holder} className={`ad-unit ad-kind-${unit.kind}`} aria-label={unit.label || 'Advertisement'} data-ad={unit.slot_key}>
     {unit.label && <span className="ad-label">{unit.label}</span>}
-    <div className="ad-body" style={!isLink ? { minHeight: h, width: fluid ? '100%' : w, maxWidth: '100%' } : undefined}>{body}</div>
+    <div className="ad-body" style={!isLink ? { minHeight: mode === 'inline' ? undefined : h, width: fluid ? '100%' : w, maxWidth: '100%' } : undefined}>{body}{debug && !isLink && <span className="ad-debug-chip">{unit.slot_key} · {mode}{fell ? ' (auto-fallback)' : ''}{status ? ' · ' + status : ''}</span>}</div>
   </aside>
 }

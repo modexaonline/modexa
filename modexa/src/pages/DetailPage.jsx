@@ -1,68 +1,76 @@
-import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowUpRight, Bookmark, Check, Download, ExternalLink, Info, ShieldCheck, CalendarDays, UserRound, Monitor, ChevronRight } from 'lucide-react'
+import { Link, Navigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Bookmark, Check, Download, CalendarDays, UserRound, Monitor, ChevronRight } from 'lucide-react'
 import SEO from '../components/SEO'
 import ModCard from '../components/ModCard'
-import { formatCount } from '../data/mods'
-import { useModsState } from '../lib/useMods'
-import { useState } from 'react'
+import ContentHtml from '../components/ContentHtml'
 import SafeImg from '../components/SafeImg'
 import ShareButton from '../components/ShareButton'
-import { PageSkeleton } from '../components/Skeleton'
 import AdSlot from '../components/AdSlot'
+import { PageSkeleton } from '../components/Skeleton'
+import { formatCount } from '../data/mods'
+import { useModsState } from '../lib/useMods'
+import { useSettings } from '../lib/useSettings'
+import { useAdUnits } from '../lib/useAds'
 import { slugify } from '../lib/format'
 import { supabase, supabaseConfigured } from '../lib/supabase'
 
-export default function DetailPage({ savedIds, onToggleSave }) {
-  const { items: mods, loading } = useModsState()
-  const { slug } = useParams()
+export default function DetailPage({ type = 'app', savedIds, onToggleSave }) {
+  const { items: mods, loading } = useModsState(), { slug } = useParams(), settings = useSettings()
   const mod = mods.find(m => m.slug === slug)
-  const [activeTab, setActiveTab] = useState('overview')
+  const ctx = { gameSlug: mod ? slugify(mod.game) : '' }
+  const all = useAdUnits('', ctx, { ignoreScope: true }), inContent = useAdUnits('blog_in_content', ctx)
   if (loading && !mod) return <PageSkeleton/>
-  if (!mod) return <div className="container not-found-inline"><h1>Mod not found</h1><p>This listing may have moved or no longer exists.</p><Link className="button button-primary" to="/mods">Browse mods</Link></div>
-  const related = mods.filter(m => m.id !== mod.id && (m.game === mod.game || m.category === mod.category)).slice(0,3)
+  const base = type === 'game' ? '/games' : '/apps', label = type === 'game' ? 'Games' : 'Apps'
+  if (mod && (mod.type || 'app') !== type) return <Navigate to={mod.href} replace/>
+  if (!mod) return <div className="container not-found-inline"><h1>Not found</h1><p>This page may have moved or no longer exists.</p><Link className="button button-primary" to={base}>Browse {label.toLowerCase()}</Link></div>
+  const related = mods.filter(m => m.id !== mod.id && m.type === mod.type && (m.game === mod.game || m.category === mod.category)).slice(0, 3)
   const saved = savedIds.includes(mod.id)
-  const trackDownload = () => {
-    if (!supabaseConfigured) return
-    try { const key = `modexa-dl-${mod.slug}`; if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1') } catch {}
-    supabase.rpc('increment_mod_downloads', { p_slug: mod.slug }).then(() => {})
-  }
+  const wait = Number.isFinite(+settings.download_wait_seconds) ? +settings.download_wait_seconds : 30
+  const trackDownload = () => { if (!supabaseConfigured) return; try { const k = `modexa-dl-${mod.slug}`; if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1') } catch {} supabase.rpc('increment_mod_downloads', { p_slug: mod.slug }).then(() => {}) }
   const jsonLd = [
-    { '@type': 'SoftwareApplication', name: mod.title, applicationCategory: 'GameApplication', operatingSystem: mod.platform, description: mod.short || mod.description, image: mod.image || undefined, softwareVersion: mod.version, datePublished: mod.updated || undefined, author: { '@type': 'Person', name: mod.creator }, isBasedOn: mod.game ? { '@type': 'VideoGame', name: mod.game } : undefined, url: mod.downloadUrl || undefined },
+    { '@type': 'SoftwareApplication', name: mod.title, applicationCategory: type === 'game' ? 'GameApplication' : 'MobileApplication', operatingSystem: mod.platform, description: mod.short || undefined, image: mod.image || undefined, softwareVersion: mod.version || undefined, datePublished: mod.updated || undefined, author: { '@type': 'Person', name: mod.creator } },
     ...(mod.install?.length ? [{ '@type': 'HowTo', name: `How to install ${mod.title}`, step: mod.install.map((t, n) => ({ '@type': 'HowToStep', position: n + 1, text: String(t) })) }] : []),
   ]
+  const crumbs = [{ label: 'Home', to: '/' }, { label, to: base }, { label: mod.title }]
+  const rows = [['Creator', mod.creator], ['Version', mod.version], ['Updated', mod.updated], ['Platform', mod.platform], ['Category', mod.category]].filter(r => r[1])
+  const body = mod.content || mod.description
   return <>
-    <SEO fullTitle={mod.seo_title ? `${mod.seo_title} | Modexa` : `${mod.title} — ${mod.game} Mod (${mod.platform}) | Modexa`} description={mod.seo_description || `${mod.short} Check features, requirements, version ${mod.version} and install notes, then download from the creator’s original page.`} noindex={mod.noindex} canonical={mod.canonical_url} image={mod.image} type="article" pageType="ItemPage" modified={mod.updated} breadcrumbs={[{label:'Home',to:'/'},{label:'Mods',to:'/mods'},{label:mod.title}]} jsonLd={jsonLd}/>
+    <SEO fullTitle={mod.seo_title ? `${mod.seo_title} | Modexa` : `${mod.title}: ${label.slice(0, -1)} | Modexa`} description={mod.seo_description || mod.short || `${mod.title} on Modexa.`} noindex={mod.noindex} canonical={mod.canonical_url} image={mod.image} type="article" pageType="ItemPage" modified={mod.updated} breadcrumbs={crumbs} jsonLd={jsonLd}/>
     <div className="detail-page container">
-      <div className="breadcrumbs"><Link to="/">Home</Link><ChevronRight size={14}/><Link to="/mods">Mods</Link><ChevronRight size={14}/><span>{mod.title}</span></div>
-      <Link to="/mods" className="back-link"><ArrowLeft size={16}/> Back to mods</Link>
+      <nav className="breadcrumbs" aria-label="Breadcrumb"><ol>{crumbs.map((c, i) => <li key={c.label}>{i > 0 && <ChevronRight size={13} aria-hidden="true"/>}{c.to && i < crumbs.length - 1 ? <Link to={c.to}>{c.label}</Link> : <span aria-current="page">{c.label}</span>}</li>)}</ol></nav>
       <div className="detail-hero">
-        <div className="detail-art"><SafeImg src={mod.image} alt={`${mod.title} preview`} /><span className="detail-art-overlay"/><span className="detail-art-tag">{mod.category}</span></div>
+        <div className="detail-art"><SafeImg src={mod.image} alt={`${mod.title}`}/>{mod.category && <span className="detail-art-tag">{mod.category}</span>}</div>
         <div className="detail-summary">
-          <div className="eyebrow">MOD PROFILE</div>
           <h1>{mod.title}</h1>
-          <p className="detail-lead">{mod.short}</p>
-          <div className="detail-game-line"><span className="game-mini-icon"><Monitor size={16}/></span><span>For <strong>{mod.game}</strong></span><span className="meta-dot">·</span><span>{mod.platform}</span></div>
-          <div className="detail-stats"><div><Download size={16}/><span><b>{formatCount(mod.downloads)}</b><small>Downloads</small></span></div><div><CalendarDays size={16}/><span><b>{mod.updated}</b><small>Updated</small></span></div><div><UserRound size={16}/><span><b>{mod.creator}</b><small>Creator</small></span></div></div>
-          <div className="detail-actions"><ShareButton title={mod.title} text={mod.short}/><button className={`button ${saved ? 'button-saved' : 'button-primary'}`} onClick={() => onToggleSave(mod.id)}>{saved ? <Check size={17}/> : <Bookmark size={17}/>} {saved ? 'Saved to library' : 'Save this mod'}</button><a className="button button-outline" href="#download-info">Download info <ArrowUpRight size={16}/></a></div>
-          <p className="demo-warning"><Info size={15}/> {mod.downloadUrl ? "Opens the creator’s external source. Check permissions and compatibility before installing." : "No verified source has been added to this listing yet."}</p>
+          {mod.short && <p className="detail-lead">{mod.short}</p>}
+          <div className="detail-game-line"><span className="game-mini-icon"><Monitor size={16}/></span><span>{mod.game && mod.game !== 'Uncategorized' && mod.game !== mod.title ? <>For <strong>{mod.game}</strong> · </> : null}{mod.platform}</span></div>
+          <div className="detail-stats"><div><Download size={16}/><span><b>{formatCount(mod.downloads)}</b><small>Downloads</small></span></div>{mod.updated && <div><CalendarDays size={16}/><span><b>{mod.updated}</b><small>Updated</small></span></div>}{mod.creator && <div><UserRound size={16}/><span><b>{mod.creator}</b><small>Creator</small></span></div>}</div>
+          <div className="detail-actions">
+            {mod.downloadUrl && <a className="mx-btn mx-btn--green mx-btn--lg" href={mod.downloadUrl} data-wait={wait} target="_blank" rel="sponsored nofollow noopener noreferrer" onClick={trackDownload}><Download size={18}/><span>Download</span></a>}
+            <button className={`button ${saved ? 'button-saved' : 'button-outline'}`} onClick={() => onToggleSave(mod.id)}>{saved ? <Check size={17}/> : <Bookmark size={17}/>} {saved ? 'Saved' : 'Save'}</button>
+            <ShareButton title={mod.title} text={mod.short}/>
+          </div>
         </div>
       </div>
       <div className="detail-layout">
         <div className="detail-main">
-          <div className="detail-tabs" role="tablist" aria-label="Mod information">{[['overview','Overview'],['features','Features'],['install','Installation'],['requirements','Requirements']].map(([id,label]) => <button role="tab" aria-selected={activeTab === id} className={activeTab === id ? 'active' : ''} key={id} onClick={() => setActiveTab(id)}>{label}</button>)}</div>
-          <section className="detail-content">
-            {activeTab === 'overview' && <><h2>About this mod</h2><p>{mod.description}</p><h3>At a glance</h3><div className="info-grid"><div><span>Game</span><strong>{mod.game}</strong></div><div><span>Category</span><strong>{mod.category}</strong></div><div><span>Version</span><strong>{mod.version}</strong></div><div><span>Platform</span><strong>{mod.platform}</strong></div></div></>}
-            {activeTab === 'features' && <><h2>What to know</h2><p>Review the original creator's listing to confirm exact features before installing.</p><ul className="feature-list">{mod.features.map(f => <li key={f}><Check size={16}/>{f}</li>)}</ul></>}
-            {activeTab === 'install' && <><h2>Installation guidance</h2><p>These general safety steps are provided for the demo. Always follow the original creator's specific instructions.</p><ol className="install-list">{mod.install.map(s => <li key={s}>{s}</li>)}</ol></>}
-            {activeTab === 'requirements' && <><h2>Requirements & compatibility</h2><ul className="feature-list">{mod.requirements.map(r => <li key={r}><Info size={16}/>{r}</li>)}</ul><div className="notice-box"><ShieldCheck size={19}/><p>Compatibility has not been independently verified for this demo listing. Confirm the exact game version, dependencies, and license with the original source.</p></div></>}
-          </section>
-          <section className="download-info-box" id="download-info"><div className="download-info-icon"><Info size={22}/></div><div><h3>{mod.downloadUrl ? "Official source & download" : "Download source not configured"}</h3><p>{mod.downloadUrl ? "You are leaving Modexa for the source supplied by the listing editor. Confirm the URL, game version, license and permissions before downloading." : "The editor has not added a verified creator URL yet. Modexa does not provide a file for this listing until an authorized source is configured."}</p>{mod.downloadUrl && <a className="button button-primary" href={mod.downloadUrl} target="_blank" rel="noopener noreferrer nofollow" onClick={trackDownload}>Visit creator source <ExternalLink size={16}/></a>}</div></section>
+          {body ? <ContentHtml content={body} ads={all} inContent={inContent} className="detail-body"/> : null}
+          {mod.features?.length > 0 && <section className="detail-list"><h2>Features</h2><ul>{mod.features.map(f => <li key={f}><Check size={16}/>{f}</li>)}</ul></section>}
+          {mod.requirements?.length > 0 && <section className="detail-list"><h2>Requirements</h2><ul>{mod.requirements.map(f => <li key={f}><Check size={16}/>{f}</li>)}</ul></section>}
+          {mod.install?.length > 0 && <section className="detail-list"><h2>How to install</h2><ol>{mod.install.map(s => <li key={s}>{s}</li>)}</ol></section>}
+          <AdSlot placement="mod_bottom" gameSlug={slugify(mod.game)}/>
         </div>
-        <aside className="detail-sidebar"><AdSlot placement="mod_sidebar" gameSlug={slugify(mod.game)}/><div className="sidebar-panel"><h3>Listing details</h3><div className="sidebar-row"><span>Creator</span><strong>{mod.creator}</strong></div><div className="sidebar-row"><span>Version</span><strong>{mod.version}</strong></div><div className="sidebar-row"><span>Updated</span><strong>{mod.updated}</strong></div><div className="sidebar-row"><span>Platform</span><strong>{mod.platform}</strong></div><div className="sidebar-row"><span>Category</span><strong>{mod.category}</strong></div><div className="verified-note"><ShieldCheck size={17}/><span>Check original source before installing</span></div></div><div className="sidebar-panel creator-panel"><span className="creator-avatar"><UserRound size={22}/></span><h3>Support creators</h3><p>Follow original creator links, review licenses, and give credit where it is due.</p><Link to="/guidelines" className="text-link">Read our guidelines <ArrowUpRight size={15}/></Link></div></aside>
+        <aside className="detail-sidebar">
+          <AdSlot placement="mod_sidebar" gameSlug={slugify(mod.game)}/>
+          {rows.length > 0 && <div className="lst-card"><h3>Details</h3>{rows.map(([k, v]) => <div className="lst-row" key={k}><span>{k}</span><strong>{v}</strong></div>)}</div>}
+        </aside>
       </div>
-      <AdSlot placement="mod_bottom" gameSlug={slugify(mod.game)}/>
-      {related.length > 0 && <section className="related-section"><div className="section-heading"><div><div className="eyebrow">KEEP EXPLORING</div><h2>Related <span className="text-gradient">mods</span></h2></div><Link to="/mods" className="text-link">View all <ArrowUpRight size={16}/></Link></div><div className="mods-grid">{related.map(m => <ModCard key={m.id} mod={m} saved={savedIds.includes(m.id)} onToggleSave={onToggleSave}/>)}</div></section>}
-      {!supabaseConfigured && <p className="micro-disclaimer">*Demo mode: engagement counts are illustrative sample data.</p>}
+      {related.length > 0 && <section className="related-section"><h2>More like this</h2><div className="mods-grid">{related.map(m => <ModCard key={m.id} mod={m} saved={savedIds.includes(m.id)} onToggleSave={onToggleSave}/>)}</div></section>}
     </div>
   </>
+}
+export function LegacyModRedirect() {
+  const { slug } = useParams(), { items, loading } = useModsState(), m = items.find(x => x.slug === slug)
+  if (loading) return <PageSkeleton/>
+  return <Navigate to={m ? m.href : '/apps'} replace/>
 }

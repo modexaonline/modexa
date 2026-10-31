@@ -8,8 +8,7 @@ export const SITE = {
   locale: 'en',
 }
 export const NAV = [
-  { to: '/mods', label: 'Explore Mods' }, { to: '/games', label: 'Games' }, { to: '/categories', label: 'Categories' },
-  { to: '/trending', label: 'Trending' }, { to: '/latest', label: 'Latest' }, { to: '/blog', label: 'Guides & Blog' }, { to: '/submit-mod', label: 'Submit a Mod' },
+  { to: '/apps', label: 'Apps' }, { to: '/games', label: 'Games' }, { to: '/guide', label: 'Guide' }, { to: '/blog', label: 'Blog' }, { to: '/submit-mod', label: 'Submit an App' },
 ]
 export const LEGAL_LINKS = [
   { to: '/about', label: 'About' }, { to: '/contact', label: 'Contact' }, { to: '/privacy', label: 'Privacy Policy' },

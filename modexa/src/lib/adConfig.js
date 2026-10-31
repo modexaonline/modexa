@@ -19,19 +19,20 @@ export const AD_SIZES = [
 export const AD_KINDS = [
   { id: 'banner', label: 'Banner / display ad', code: true, global: false, help: 'Paste the banner code from your ad network (script or iframe). Choose its exact size below.' },
   { id: 'native', label: 'Native / widget ad', code: true, global: false, help: 'Paste the native or “recommended” widget code. Use Inline rendering if the network asks for it.' },
-  { id: 'popunder', label: 'Pop-under / on-click script', code: true, global: true, help: 'Network script that opens a window on click. Loaded once per page, site-wide. Use sparingly — it hurts user experience.' },
+  { id: 'popunder', label: 'Pop-under / on-click script', code: true, global: true, help: 'Network script that opens a window on click. Loaded once per page, site-wide. Use sparingly: it hurts user experience.' },
   { id: 'social_bar', label: 'Social bar / floating script', code: true, global: true, help: 'Floating notification-style ad script. Loaded once per page, site-wide.' },
   { id: 'direct_link', label: 'Direct link (smartlink)', code: false, global: false, help: 'No code needed. Paste your direct/smart link and choose how it looks (button, card or text).' },
   { id: 'script', label: 'Custom HTML / JavaScript', code: true, global: false, help: 'Any HTML or script (for example Google AdSense, affiliate widgets, verification snippets).' },
 ]
 export const AD_PLACEMENTS = [
-  { id: 'blog_top', label: 'Blog — top of article', help: 'Right below the article title and cover image.' },
-  { id: 'blog_in_content', label: 'Blog — inside the content', help: 'After paragraph N (and optionally repeated every N paragraphs).' },
-  { id: 'blog_bottom', label: 'Blog — end of article', help: 'After the last paragraph.' },
-  { id: 'mod_sidebar', label: 'Mod page — sidebar', help: 'Sidebar of every mod page.' },
-  { id: 'mod_bottom', label: 'Mod page — bottom', help: 'Below mod details.' },
-  { id: 'home_middle', label: 'Home — between sections', help: 'Between the featured mods and the games section.' },
+  { id: 'blog_top', label: 'Blog: top of article', help: 'Right below the article title and cover image.' },
+  { id: 'blog_in_content', label: 'Blog: inside the content', help: 'After paragraph N (and optionally repeated every N paragraphs).' },
+  { id: 'blog_bottom', label: 'Blog: end of article', help: 'After the last paragraph.' },
+  { id: 'mod_sidebar', label: 'Mod page: sidebar', help: 'Sidebar of every mod page.' },
+  { id: 'mod_bottom', label: 'Mod page: bottom', help: 'Below mod details.' },
+  { id: 'home_middle', label: 'Home: between sections', help: 'Between the featured mods and the games section.' },
   { id: 'sticky_bottom', label: 'Sticky footer bar (all pages)', help: 'A closable bar fixed to the bottom of the screen. Best with 320x50 or 728x90.' },
+  { id: 'download_gate', label: 'Download wait screen', help: 'Shown on the 30-second countdown screen before a download button redirects. Great for 300×250 or 336×280.' },
   { id: 'global_head', label: 'Site-wide script (head)', help: 'Loaded on every public page, in <head>. For ad-network loaders.' },
   { id: 'global_body', label: 'Site-wide script (end of body)', help: 'Loaded on every public page, end of <body>. For pop-under and social bar scripts.' },
 ]

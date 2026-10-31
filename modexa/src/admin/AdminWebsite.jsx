@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pencil, ExternalLink, RotateCcw, Plus, ArrowLeft, Save, FilePlus2, Info } from 'lucide-react'
+import { Pencil, ExternalLink, RotateCcw, Plus, ArrowLeft, Save, FilePlus2, Info, Trash2, Copy, Eye, EyeOff } from 'lucide-react'
+import AdminPageBuilder from './AdminPageBuilder'
 import { supabase } from '../lib/supabase'
 import { PAGES } from '../content/legal'
 import { LISTING } from '../content/seo'
@@ -8,7 +9,7 @@ import { setContentCache } from '../lib/siteContent'
 import { Counter, Move, moveItem, lines, paras, slugify } from './fields'
 import './admin-extra.css'
 
-const LISTING_NAMES = { mods: 'Explore mods', trending: 'Trending', latest: 'Latest', games: 'Games directory', categories: 'Categories', blog: 'Blog index', submit: 'Submit a mod', search: 'Search', saved: 'Saved mods' }
+const LISTING_NAMES = { apps: 'Apps', games: 'Games', guide: 'Guide', blog: 'Blog', submit: 'Submit an app' }
 const ROWS = [
   { key: 'home', name: 'Home page', url: '/', group: 'Home', kind: 'home', defaults: { ...LISTING.home, ...HOME_DEFAULT } },
   ...Object.values(PAGES).map(p => ({ key: 'page:' + p.slug, name: p.title, url: '/' + p.slug, group: 'Information & policy pages', kind: 'page', defaults: p })),
@@ -76,7 +77,7 @@ function ContentEditor({ row, saved, onBack, onSaved, onNotice, onError }) {
     {row.kind === 'home' && <>
       <section className="adm-card"><h3>Hero (top of home page)</h3>
         <div className="adm-grid2"><label className="adm-field"><span>Small label above heading</span><input value={d.hero.eyebrow} onChange={e => setIn('hero', { eyebrow: e.target.value })}/></label><label className="adm-field"><span>Search box placeholder</span><input value={d.hero.searchPlaceholder} onChange={e => setIn('hero', { searchPlaceholder: e.target.value })}/></label></div>
-        <div className="adm-grid2" style={{ marginTop: 14 }}><label className="adm-field"><span>Heading — line 1 (black)</span><input value={d.hero.line1} onChange={e => setIn('hero', { line1: e.target.value })}/></label><label className="adm-field"><span>Heading — line 2 (green)</span><input value={d.hero.line2} onChange={e => setIn('hero', { line2: e.target.value })}/></label></div>
+        <div className="adm-grid2" style={{ marginTop: 14 }}><label className="adm-field"><span>Heading, line 1 (black)</span><input value={d.hero.line1} onChange={e => setIn('hero', { line1: e.target.value })}/></label><label className="adm-field"><span>Heading, line 2 (green)</span><input value={d.hero.line2} onChange={e => setIn('hero', { line2: e.target.value })}/></label></div>
         <label className="adm-field" style={{ marginTop: 14 }}><span>Intro paragraph</span><textarea rows={3} value={d.hero.description} onChange={e => setIn('hero', { description: e.target.value })}/></label></section>
       <section className="adm-card"><h3>Section headings</h3><p className="adm-sub">Title + green accent word + short text for each home section.</p><div className="adm-repeat">{Object.entries({ featured: 'Featured mods', games: 'Browse by game', categories: 'Categories', how: 'How it works', why: 'Why Modexa' }).map(([k, label]) => <div className="adm-item" key={k}><b style={{ fontSize: 13, color: '#4b5563' }}>{label.toUpperCase()}</b><div className="adm-grid2"><label className="adm-field"><span>Title</span><input value={d.headings[k].title} onChange={e => setIn('headings', { [k]: { ...d.headings[k], title: e.target.value } })}/></label><label className="adm-field"><span>Green accent word(s)</span><input value={d.headings[k].accent} onChange={e => setIn('headings', { [k]: { ...d.headings[k], accent: e.target.value } })}/></label></div><label className="adm-field"><span>Sub text</span><input value={d.headings[k].text} onChange={e => setIn('headings', { [k]: { ...d.headings[k], text: e.target.value } })}/></label></div>)}</div></section>
       <section className="adm-card"><h3>“How it works” steps</h3><Pair items={d.steps} onChange={steps => set({ steps })} add="Add step"/></section>
@@ -136,23 +137,41 @@ function NavEditor({ saved, onSaved, onNotice, onError }) {
   </div>
 }
 
-export default function AdminWebsite({ onNotice, onError, onGoto }) {
-  const [tab, setTab] = useState('pages'), [store, setStore] = useState({}), [loading, setLoading] = useState(true), [edit, setEdit] = useState(null)
-  async function load() { setLoading(true); const { data, error } = await supabase.from('site_content').select('key,data,updated_at'); setLoading(false); if (error) return onError(error.message); const m = {}; (data || []).forEach(r => { m[r.key] = { data: r.data, updated_at: r.updated_at } }); setStore(m) }
+export default function AdminWebsite({ onNotice, onError }) {
+  const [tab, setTab] = useState('pages'), [store, setStore] = useState({}), [loading, setLoading] = useState(true), [edit, setEdit] = useState(null), [custom, setCustom] = useState([]), [builder, setBuilder] = useState(null)
+  async function load() {
+    setLoading(true)
+    const [c, p] = await Promise.all([supabase.from('site_content').select('key,data,updated_at'), supabase.from('pages').select('*').order('created_at', { ascending: false })])
+    setLoading(false)
+    if (c.error) return onError(c.error.message)
+    const m = {}; (c.data || []).forEach(r => { m[r.key] = { data: r.data, updated_at: r.updated_at } }); setStore(m); setCustom(p.data || [])
+  }
   useEffect(() => { load() }, [])
   const onSaved = (key, data) => setStore(s => { const n = { ...s }; if (data) n[key] = { data, updated_at: new Date().toISOString() }; else delete n[key]; return n })
+  async function dupPage(pg) { const { id, created_at, updated_at, ...rest } = pg; const { error } = await supabase.from('pages').insert({ ...rest, title: pg.title + ' (copy)', slug: pg.slug + '-copy-' + Math.random().toString(36).slice(2, 5), status: 'draft', show_in_menu: false }); if (error) return onError(error.message); onNotice('Page duplicated as a draft.'); load() }
+  async function togglePage(pg) { const next = pg.status === 'published' ? 'draft' : 'published'; const { error } = await supabase.from('pages').update({ status: next }).eq('id', pg.id); if (error) return onError(error.message); onNotice(next === 'published' ? 'Page is live.' : 'Page moved to draft.'); load() }
+  async function delPage(pg) { if (!confirm(`Delete the page “${pg.title}” permanently? This cannot be undone.`)) return; const { error } = await supabase.from('pages').delete().eq('id', pg.id); if (error) return onError(error.message); onNotice('Page deleted.'); load() }
+  async function resetRow(r) { if (!confirm(`Reset “${r.name}” to its default text?`)) return; const { error } = await supabase.from('site_content').delete().eq('key', r.key); if (error) return onError(error.message); setContentCache(r.key, null); onSaved(r.key, null); onNotice('Reset to default.') }
+  if (builder !== null) return <AdminPageBuilder page={builder.id ? builder : null} onBack={() => { setBuilder(null); load() }} onSaved={() => load()} onNotice={onNotice} onError={onError}/>
   if (edit) return <ContentEditor row={edit} saved={store[edit.key]?.data} onBack={() => setEdit(null)} onSaved={onSaved} onNotice={onNotice} onError={onError}/>
   const groups = ['Home', 'Information & policy pages', 'Listing pages']
   return <div className="adm">
-    <div className="adm-head"><div><h2>Website editor</h2><p>Edit the text, SEO, FAQs and menus of every page on the site — no code. Changes show on the live site immediately.</p></div><button className="adm-btn" onClick={() => onGoto?.('pages')}><FilePlus2 size={15}/> Create a new custom page</button></div>
+    <div className="adm-head"><div><h2>Website editor</h2><p>Edit every page of the site, text, SEO, FAQs, menus, and build new pages with sections. Changes show on the live site immediately.</p></div><button className="adm-btn primary" onClick={() => setBuilder({})}><FilePlus2 size={15}/> Add new page</button></div>
     <div className="adm-tabs" role="tablist">{[['pages', 'Pages'], ['nav', 'Navigation & footer']].map(([k, l]) => <button key={k} role="tab" className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
-    {tab === 'nav' ? <NavEditor saved={store.nav?.data} onSaved={onSaved} onNotice={onNotice} onError={onError}/> : loading ? <p style={{ color: '#6b7280' }}>Loading…</p> : groups.map(g => <section className="adm-card" style={{ padding: 0 }} key={g}>
-      <h3 style={{ padding: '16px 20px 0' }}>{g}</h3>
-      <div className="adm-scroll"><table className="adm-table"><thead><tr><th>Page</th><th>Address</th><th>Status</th><th>Last edited</th><th>Actions</th></tr></thead><tbody>{ROWS.filter(r => r.group === g).map(r => { const s = store[r.key]; return <tr key={r.key}>
-        <td><div className="adm-name"><b>{r.name}</b></div></td><td><code className="adm-code-chip">{r.url}</code></td>
-        <td>{s ? <span className="adm-pill green">Customized</span> : <span className="adm-pill">Default</span>}</td>
-        <td style={{ color: '#6b7280' }}>{s ? new Date(s.updated_at).toLocaleDateString() : '—'}</td>
-        <td><div className="adm-actions"><button className="adm-btn sm primary" onClick={() => setEdit(r)}><Pencil size={14}/> Edit</button><a className="adm-btn sm" href={r.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={14}/> View</a></div></td>
-      </tr> })}</tbody></table></div></section>)}
+    {tab === 'nav' ? <NavEditor saved={store.nav?.data} onSaved={onSaved} onNotice={onNotice} onError={onError}/> : loading ? <p style={{ color: '#6b7280' }}>Loading…</p> : <>
+      <section className="adm-card" style={{ padding: 0 }}><h3 style={{ padding: '16px 20px 0' }}>Your pages</h3><p className="adm-sub" style={{ padding: '0 20px' }}>Pages you created with the page builder.</p>
+        {custom.length === 0 ? <p style={{ padding: '4px 20px 22px', color: '#6b7280' }}>No custom pages yet. Click “Add new page”.</p> : <div className="adm-scroll"><table className="adm-table"><thead><tr><th>Page</th><th>Address</th><th>Status</th><th>Actions</th></tr></thead><tbody>{custom.map(pg => <tr key={pg.id}>
+          <td><div className="adm-name"><b>{pg.title}</b><small>{(pg.blocks || []).length} sections{pg.show_in_menu ? ' · in menu' : ''}{pg.show_in_footer ? ' · in footer' : ''}</small></div></td><td><code className="adm-code-chip">/page/{pg.slug}</code></td>
+          <td><span className={`adm-pill ${pg.status === 'published' ? 'green' : 'amber'}`}>{pg.status === 'published' ? 'Published' : 'Draft'}</span></td>
+          <td><div className="adm-actions"><button className="adm-btn sm primary" onClick={() => setBuilder(pg)}><Pencil size={14}/> Edit</button><a className="adm-btn sm" href={`/page/${pg.slug}`} target="_blank" rel="noopener noreferrer"><ExternalLink size={14}/> View</a><button className="adm-btn sm" onClick={() => togglePage(pg)} title={pg.status === 'published' ? 'Unpublish' : 'Publish'}>{pg.status === 'published' ? <EyeOff size={14}/> : <Eye size={14}/>}</button><button className="adm-btn sm" onClick={() => dupPage(pg)} title="Duplicate"><Copy size={14}/></button><button className="adm-btn sm danger" onClick={() => delPage(pg)}><Trash2 size={14}/> Delete</button></div></td></tr>)}</tbody></table></div>}</section>
+      {groups.map(g => <section className="adm-card" style={{ padding: 0 }} key={g}>
+        <h3 style={{ padding: '16px 20px 0' }}>{g}</h3>
+        <div className="adm-scroll"><table className="adm-table"><thead><tr><th>Page</th><th>Address</th><th>Status</th><th>Last edited</th><th>Actions</th></tr></thead><tbody>{ROWS.filter(r => r.group === g).map(r => { const s = store[r.key]; return <tr key={r.key}>
+          <td><div className="adm-name"><b>{r.name}</b></div></td><td><code className="adm-code-chip">{r.url}</code></td>
+          <td>{s ? <span className="adm-pill green">Customized</span> : <span className="adm-pill">Default</span>}</td>
+          <td style={{ color: '#6b7280' }}>{s ? new Date(s.updated_at).toLocaleDateString() : ', '}</td>
+          <td><div className="adm-actions"><button className="adm-btn sm primary" onClick={() => setEdit(r)}><Pencil size={14}/> Edit</button><a className="adm-btn sm" href={r.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={14}/> View</a>{s && <button className="adm-btn sm danger" onClick={() => resetRow(r)} title="Remove your edits and restore the default text"><RotateCcw size={14}/> Reset</button>}</div></td>
+        </tr> })}</tbody></table></div></section>)}
+    </>}
   </div>
 }

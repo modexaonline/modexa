@@ -40,7 +40,7 @@ create table if not exists public.ad_units(
   size text not null default '300x250' check(char_length(size) <= 20),
   custom_width int not null default 300 check(custom_width between 1 and 2000),
   custom_height int not null default 250 check(custom_height between 1 and 2000),
-  render_mode text not null default 'isolated' check(render_mode in ('isolated','inline')),
+  render_mode text not null default 'isolated' check(render_mode in ('isolated','inline','strict')),
   code text not null default '' check(char_length(code) <= 20000),
   link_url text not null default '' check(link_url = '' or link_url ~* '^https?://'),
   link_label text not null default 'Learn more' check(char_length(link_label) <= 80),

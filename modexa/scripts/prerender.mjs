@@ -1,19 +1,20 @@
 // Runs after `vite build`. For every important route it writes a real HTML file containing the page's
-// title, meta tags, canonical URL, JSON-LD (schema.org) and readable text — so Google, Bing and AI crawlers
+// title, meta tags, canonical URL, JSON-LD (schema.org) and readable text, so Google, Bing and AI crawlers
 // (ChatGPT, Claude, Perplexity, Gemini) that do not run JavaScript still see complete, accurate content.
 // It also generates sitemap.xml, robots.txt and llms.txt. The React app takes over in the browser as usual.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { PAGES, POLICY_SLUGS, ADS_SECTIONS } from '../src/content/legal.js'
 import { mergeContent, HOME_DEFAULT, NAV_DEFAULT } from '../src/content/merge.js'
-import { LISTING, gameContent, categoryContent } from '../src/content/seo.js'
+import { LISTING } from '../src/content/seo.js'
+import { isHtml } from '../src/lib/formatText.js'
 import { SITE, NAV, LEGAL_LINKS } from '../src/content/site.js'
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_KEY, PUBLIC_SITE_URL } from '../src/lib/publicConfig.js'
 
 const env = { ...process.env }
 if (existsSync('.env')) for (const l of readFileSync('.env', 'utf8').split('\n')) { const m = l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/); if (m && !(m[1] in env)) env[m[1]] = m[2].replace(/^["']|["']$/g, '') }
 let SITE_URL = (env.SITE_URL || env.VITE_SITE_URL || PUBLIC_SITE_URL || '').replace(/\/$/, '')
-if (!SITE_URL || SITE_URL.includes('yourdomain')) { console.warn('⚠ SITE_URL is not set — using https://yourdomain.com. Set SITE_URL in your hosting environment for correct canonical URLs and sitemap.'); SITE_URL = 'https://yourdomain.com' }
+if (!SITE_URL || SITE_URL.includes('yourdomain')) { console.warn('⚠ SITE_URL is not set, using https://yourdomain.com. Set SITE_URL in your hosting environment for correct canonical URLs and sitemap.'); SITE_URL = 'https://yourdomain.com' }
 const SB = (env.VITE_SUPABASE_URL || PUBLIC_SUPABASE_URL || '').replace(/\/$/, ''), KEY = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || PUBLIC_SUPABASE_KEY || ''
 const live = SB && KEY && !SB.includes('YOUR_PROJECT_ID')
 const DIST = 'dist'
@@ -36,7 +37,6 @@ if (live) {
   try { posts = await rest('posts', '*', '&status=eq.published&order=published_at.desc') } catch (e) { console.warn('posts:', e.message) }
   try { cpages = await rest('pages', '*', '&status=eq.published') } catch (e) { console.warn('pages:', e.message) }
   try { settings = (await rest('site_settings', '*', '&id=eq.1'))[0] || {} } catch {}
-  try { games = await rest('games', '*', '&status=eq.published&order=sort_order.asc') } catch (e) { console.warn('games:', e.message) }
   try { for (const r of await rest('site_content', 'key,data')) content[r.key] = r.data } catch (e) { console.warn('site_content:', e.message) }
 } else console.log('Supabase not configured: prerendering static pages only.')
 
@@ -64,16 +64,21 @@ function md(src = '') {
   fp(); fl(); return out
 }
 
+// Post / listing bodies are HTML (new editor) or markdown (older posts). Ads, embeds and scripts are removed from the static copy.
+const staticBody = c => {
+  if (!isHtml(c)) return md(c || '')
+  return String(c).replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<div class="mx-(?:ad|embed)"[^>]*><\/div>/gi, '').replace(/\son\w+="[^"]*"/gi, '').replace(/\sdata-code="[^"]*"/gi, '').replace(/<a class="mx-btn[^"]*"([^>]*)>/gi, '<a$1>')
+}
+
 // ---------- route table ----------
 const routes = []
 const add = r => routes.push({ type: 'website', image: '', noindex: false, ld: [], ...r })
 const homeL = mergeContent({ ...LISTING.home, ...HOME_DEFAULT }, content.home)
-const postsByGame = g => posts.filter(p => p.game_slug === g.slug)
-const gameHref = g => { const chosen = g.blog_slug && posts.find(p => p.slug === g.blog_slug); if (chosen) return '/blog/' + chosen.slug; const first = postsByGame(g)[0]; return first ? '/blog/' + first.slug : '/games/' + g.slug }
+const gameMods = mods.filter(m => m.listing_type === 'game')
 add({ path: '/', title: homeL.seoTitle, description: homeL.description, h1: `${homeL.hero.line1} ${homeL.hero.line2}`,
-  body: `<p>${esc(homeL.hero.description)}</p>${answerHtml(homeL.answer)}${games.length ? `<section><h2>${esc(homeL.headings.games.title)} ${esc(homeL.headings.games.accent)}</h2><ul>${games.filter(g => g.show_on_home).map(g => `<li><a href="${SITE_URL}${gameHref(g)}">${esc(g.name)}</a></li>`).join('')}</ul></section>` : ''}<section><h2>${esc(homeL.headings.how.title)} ${esc(homeL.headings.how.accent)}</h2><ol>${homeL.steps.map(s => `<li><strong>${esc(s.t)}.</strong> ${esc(s.d)}</li>`).join('')}</ol></section><section><h2>${esc(homeL.headings.why.title)} ${esc(homeL.headings.why.accent)}</h2><ul>${homeL.values.map(v => `<li><strong>${esc(v.t)}.</strong> ${esc(v.d)}</li>`).join('')}</ul></section>${sectionsHtml(homeL.sections)}${faqHtml(homeL.faqs)}`,
+  body: `<p>${esc(homeL.hero.description)}</p>${answerHtml(homeL.answer)}${gameMods.length ? `<section><h2>${esc(homeL.headings.games.title)} ${esc(homeL.headings.games.accent)}</h2><ul>${gameMods.slice(0, 8).map(g => `<li><a href="${SITE_URL}/games/${g.slug}">${esc(g.title)}</a></li>`).join('')}</ul></section>` : ''}<section><h2>${esc(homeL.headings.how.title)} ${esc(homeL.headings.how.accent)}</h2><ol>${homeL.steps.map(s => `<li><strong>${esc(s.t)}.</strong> ${esc(s.d)}</li>`).join('')}</ol></section><section><h2>${esc(homeL.headings.why.title)} ${esc(homeL.headings.why.accent)}</h2><ul>${homeL.values.map(v => `<li><strong>${esc(v.t)}.</strong> ${esc(v.d)}</li>`).join('')}</ul></section>${sectionsHtml(homeL.sections)}${faqHtml(homeL.faqs)}`,
   ld: [pageLd('/', homeL.seoTitle, homeL.description), faqLd(homeL.faqs)] })
-for (const k of ['mods', 'trending', 'latest', 'games', 'categories', 'blog', 'submit']) {
+for (const k of ['apps', 'games', 'guide', 'blog', 'submit']) {
   const L = mergeContent(LISTING[k], content['listing:' + k])
   add({ path: L.path, title: L.seoTitle, description: L.description, h1: L.h1, body: `${answerHtml(L.answer)}${sectionsHtml(L.sections)}${faqHtml(L.faqs)}`,
     ld: [pageLd(L.path, L.seoTitle, L.description, k === 'submit' ? 'WebPage' : 'CollectionPage'), crumbsLd(L.path, [{ label: 'Home', to: '/' }, { label: L.h1, to: L.path }]), ...(L.faqs.length ? [faqLd(L.faqs)] : [])] })
@@ -85,33 +90,27 @@ for (const slug of POLICY_SLUGS) {
 }
 // dynamic content (only when Supabase is connected)
 for (const m of mods) {
-  const path = '/mods/' + m.slug, title = m.seo_title ? `${m.seo_title} | Modexa` : `${m.title} — ${m.game} Mod (${m.platform}) | Modexa`
-  const desc = clip(m.seo_description || `${m.excerpt || m.description || m.title} Check features, requirements, version ${m.version || ''} and install notes, then download from the creator’s original page.`, 158)
+  const isGame = m.listing_type === 'game', base = isGame ? '/games/' : '/apps/', label = isGame ? 'Game' : 'App', path = base + m.slug
+  const title = m.seo_title ? `${m.seo_title} | Modexa` : `${m.title}: ${label} | Modexa`
+  const desc = clip(m.seo_description || m.excerpt || m.description || `${m.title} on Modexa.`, 158)
   const list = (a, t) => Array.isArray(a) && a.length ? `<h2>${t}</h2><ul>${a.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''
   add({ path, title, description: desc, h1: m.title, image: m.cover_image, type: 'article', noindex: !!m.noindex, canonical: m.canonical_url || '',
-    body: `<p>${esc(m.excerpt || '')}</p><ul><li>Game: ${esc(m.game)}</li><li>Category: ${esc(m.category)}</li><li>Platform: ${esc(m.platform)}</li><li>Version: ${esc(m.version)}</li><li>Creator: ${esc(m.creator)}</li></ul><p>${esc(m.description || m.content || '')}</p>${list(m.features, 'Features')}${list(m.requirements, 'Requirements')}${Array.isArray(m.install) && m.install.length ? `<h2>Installation</h2><ol>${m.install.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}${m.download_url ? `<p><a href="${esc(m.download_url)}" rel="nofollow noopener">Creator’s original page</a></p>` : ''}`,
+    body: `<p>${esc(m.excerpt || '')}</p><ul>${m.platform ? `<li>Platform: ${esc(m.platform)}</li>` : ''}${m.version ? `<li>Version: ${esc(m.version)}</li>` : ''}${m.creator ? `<li>Creator: ${esc(m.creator)}</li>` : ''}${m.category ? `<li>Category: ${esc(m.category)}</li>` : ''}</ul>${staticBody(m.content || m.description || '')}${list(m.features, 'Features')}${list(m.requirements, 'Requirements')}${Array.isArray(m.install) && m.install.length ? `<h2>How to install</h2><ol>${m.install.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}`,
     lastmod: (m.updated_at || '').slice(0, 10),
-    ld: [pageLd(path, title, desc, 'ItemPage', { dateModified: m.updated_at || undefined }), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: 'Mods', to: '/mods' }, { label: m.title, to: path }]),
-      { '@type': 'SoftwareApplication', name: m.title, applicationCategory: 'GameApplication', operatingSystem: m.platform, description: m.excerpt || m.description, image: m.cover_image || undefined, softwareVersion: m.version || undefined, author: { '@type': 'Person', name: m.creator || 'Community creator' } },
+    ld: [pageLd(path, title, desc, 'ItemPage', { dateModified: m.updated_at || undefined }), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: isGame ? 'Games' : 'Apps', to: base.slice(0, -1) }, { label: m.title, to: path }]),
+      { '@type': 'SoftwareApplication', name: m.title, applicationCategory: isGame ? 'GameApplication' : 'MobileApplication', operatingSystem: m.platform, description: m.excerpt || undefined, image: m.cover_image || undefined, softwareVersion: m.version || undefined, author: { '@type': 'Person', name: m.creator || 'Modexa' } },
       ...(Array.isArray(m.install) && m.install.length ? [{ '@type': 'HowTo', name: `How to install ${m.title}`, step: m.install.map((t, i) => ({ '@type': 'HowToStep', position: i + 1, text: String(t) })) }] : [])] })
 }
-const gamesMap = new Map(), cats = new Map()
-for (const g of games) gamesMap.set(g.slug, g.name)
-for (const m of mods) { if (m.game && !gamesMap.has(slugify(m.game))) gamesMap.set(slugify(m.game), m.game); if (m.category) cats.set(m.category.toLowerCase().replaceAll(' & ', '-').replaceAll(' ', '-'), m.category) }
-for (const [s, name] of gamesMap) { const gp = posts.filter(p => p.game_slug === s), c = gameContent(name, mods.filter(m => slugify(m.game) === s).length), path = '/games/' + s, t = `${name} Mods — Browse Community Mods | Modexa`, d = `Browse ${name} mods on Modexa: compare versions, platforms and requirements, then download from the creator’s original page.`
-  add({ path, title: t, description: d, h1: `${name} mods`, body: `${answerHtml(c.answer)}${gp.length ? `<h2>${esc(name)} guides</h2><ul>${gp.map(p => `<li><a href="${SITE_URL}/blog/${p.slug}">${esc(p.title)}</a> — ${esc(p.excerpt || '')}</li>`).join('')}</ul>` : ''}<ul>${mods.filter(m => slugify(m.game) === s).map(m => `<li><a href="${SITE_URL}/mods/${m.slug}">${esc(m.title)}</a> — ${esc(m.excerpt || '')}</li>`).join('')}</ul>${sectionsHtml(c.sections)}${faqHtml(c.faqs)}`, ld: [pageLd(path, t, d, 'CollectionPage'), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: 'Games', to: '/games' }, { label: name, to: path }]), faqLd(c.faqs)] }) }
-for (const [s, name] of cats) { const c = categoryContent(name, mods.filter(m => m.category === name).length), path = '/categories/' + s, t = `${name} Mods — Browse by Category | Modexa`, d = `Browse ${name} mods on Modexa: compare games, versions and platforms, then download from the creator’s original page.`
-  add({ path, title: t, description: d, h1: `${name} mods`, body: `${answerHtml(c.answer)}<ul>${mods.filter(m => m.category === name).map(m => `<li><a href="${SITE_URL}/mods/${m.slug}">${esc(m.title)}</a> — ${esc(m.excerpt || '')}</li>`).join('')}</ul>${sectionsHtml(c.sections)}${faqHtml(c.faqs)}`, ld: [pageLd(path, t, d, 'CollectionPage'), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: 'Categories', to: '/categories' }, { label: name, to: path }]), faqLd(c.faqs)] }) }
 for (const p of posts) {
-  const path = '/blog/' + p.slug, title = p.seo_title ? `${p.seo_title} | Modexa` : `${p.title} | Modexa`, desc = clip(p.seo_description || p.excerpt || p.title, 158)
+  const type = p.post_type === 'guide' ? 'guide' : 'blog', path = '/' + type + '/' + p.slug, title = p.seo_title ? `${p.seo_title} | Modexa` : `${p.title} | Modexa`, desc = clip(p.seo_description || p.excerpt || p.title, 158)
   add({ path, title, description: desc, h1: p.title, image: p.cover_image, type: 'article', noindex: !!p.noindex, canonical: p.canonical_url || '', lastmod: (p.updated_at || '').slice(0, 10),
-    body: `<p>${esc(p.excerpt || '')}</p>${md(p.content)}`,
-    ld: [pageLd(path, title, desc, 'WebPage', { dateModified: p.updated_at || undefined }), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: 'Guides & blog', to: '/blog' }, { label: p.title, to: path }]),
+    body: `<p>${esc(p.excerpt || '')}</p>${staticBody(p.content)}`,
+    ld: [pageLd(path, title, desc, 'WebPage', { dateModified: p.updated_at || undefined }), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: type === 'guide' ? 'Guide' : 'Blog', to: '/' + type }, { label: p.title, to: path }]),
       { '@type': 'Article', headline: p.title, description: desc, image: p.cover_image || undefined, datePublished: p.published_at || undefined, dateModified: p.updated_at || p.published_at || undefined, author: { '@type': 'Organization', name: 'Modexa' }, publisher: { '@id': SITE_URL + '/#organization' }, mainEntityOfPage: SITE_URL + path }] })
 }
 for (const p of cpages) { if (POLICY_SLUGS.includes(p.slug)) continue
   const path = '/page/' + p.slug, title = p.seo_title ? `${p.seo_title} | Modexa` : `${p.title} | Modexa`, desc = clip(p.seo_description || p.excerpt || p.title, 158)
-  add({ path, title, description: desc, h1: p.title, noindex: !!p.noindex, lastmod: (p.updated_at || '').slice(0, 10), body: `<p>${esc(p.excerpt || '')}</p>${md(p.content)}`, ld: [pageLd(path, title, desc), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: p.title, to: path }])] }) }
+  add({ path, title, description: desc, h1: p.title, noindex: !!p.noindex, lastmod: (p.updated_at || '').slice(0, 10), body: `<p>${esc(p.excerpt || '')}</p>${Array.isArray(p.blocks) && p.blocks.length ? p.blocks.map(b => { const d = b.data || {}; return b.type === 'hero' ? `<h2>${esc(d.title)}</h2><p>${esc(d.subtitle)}</p>` : b.type === 'text' ? staticBody(d.html) : b.type === 'columns' ? (d.cols || []).map(c => staticBody(c.html)).join('') : b.type === 'faq' ? faqHtml((d.items || []).map(x => ({ q: x.q, a: x.a }))) : b.type === 'cards' ? `<ul>${(d.items || []).map(c => `<li><strong>${esc(c.title)}</strong> ${esc(c.text)}</li>`).join('')}</ul>` : b.type === 'cta' ? `<h2>${esc(d.title)}</h2><p>${esc(d.text)}</p>` : '' }).join('') : staticBody(p.content)}`, ld: [pageLd(path, title, desc), crumbsLd(path, [{ label: 'Home', to: '/' }, { label: p.title, to: path }])] }) }
 
 // ---------- write html ----------
 const DEFAULT_IMG = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=85'
@@ -155,10 +154,10 @@ const bots = ['*', 'GPTBot', 'OAI-SearchBot', 'ChatGPT-User', 'ClaudeBot', 'Clau
 writeFileSync(join(DIST, 'robots.txt'), `# AI and search crawlers are welcome so Modexa can be cited accurately. Remove a group below to opt out.\n${bots.map(b => `User-agent: ${b}\nAllow: /\nDisallow: /admin\n`).join('\n')}\nSitemap: ${SITE_URL}/sitemap.xml\n`)
 const llm = []
 llm.push(`# Modexa\n\n> ${SITE.description}\n\nModexa lists game mods and custom content with the supported game, platform, version, requirements and installation notes. It never re-hosts files: every download button opens the creator’s original page. Listings are reviewed manually. Modexa is independent and not affiliated with game publishers.\n`)
-llm.push(`## Key pages\n${[['/', 'Home'], ['/mods', 'Explore all mods'], ['/games', 'Browse by game'], ['/categories', 'Browse by category'], ['/trending', 'Trending mods'], ['/latest', 'Latest mods'], ['/blog', 'Guides and blog'], ['/submit-mod', 'Submit a mod']].map(([p, t]) => `- [${t}](${SITE_URL}${p === '/' ? '/' : p})`).join('\n')}\n`)
+llm.push(`## Key pages\n${[['/', 'Home'], ['/apps', 'Apps'], ['/games', 'Games'], ['/guide', 'Guides'], ['/blog', 'Blog'], ['/submit-mod', 'Submit an app']].map(([p, t]) => `- [${t}](${SITE_URL}${p === '/' ? '/' : p})`).join('\n')}\n`)
 llm.push(`## Policies and help\n${LEGAL_LINKS.map(l => `- [${l.label}](${SITE_URL}${l.to})`).join('\n')}\n`)
-if (mods.length) llm.push(`## Mods\n${mods.slice(0, 200).map(m => `- [${m.title}](${SITE_URL}/mods/${m.slug}): ${clip(m.excerpt || m.description, 120)} (${m.game}, ${m.platform})`).join('\n')}\n`)
-if (posts.length) llm.push(`## Guides\n${posts.slice(0, 100).map(p => `- [${p.title}](${SITE_URL}/blog/${p.slug}): ${clip(p.excerpt, 120)}`).join('\n')}\n`)
-if (settings.contact_email) llm.push(`## Contact\n${settings.contact_email} — or use ${SITE_URL}/contact\n`)
+if (mods.length) llm.push(`## Apps and games\n${mods.slice(0, 200).map(m => `- [${m.title}](${SITE_URL}${m.listing_type === 'game' ? '/games/' : '/apps/'}${m.slug}): ${clip(m.excerpt || '', 120)} (${m.platform})`).join('\n')}\n`)
+if (posts.length) llm.push(`## Guides and blog\n${posts.slice(0, 100).map(p => `- [${p.title}](${SITE_URL}/${p.post_type === 'guide' ? 'guide' : 'blog'}/${p.slug}): ${clip(p.excerpt, 120)}`).join('\n')}\n`)
+if (settings.contact_email) llm.push(`## Contact\n${settings.contact_email}, or use ${SITE_URL}/contact\n`)
 writeFileSync(join(DIST, 'llms.txt'), llm.join('\n'))
 console.log(`prerender: ${routes.length} pages, sitemap (${indexable.length} URLs), robots.txt, llms.txt → ${SITE_URL}`)
